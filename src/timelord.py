@@ -212,25 +212,23 @@ class Timelord:
             challenge_hash, constants["DISCRIMINANT_SIZE_BITS"]
         )
 
-        log.info("Attempting SSH connection")
-        proc = await asyncio.create_subprocess_shell(
-            f"./lib/chiavdf/fast_vdf/vdf_server {port}"
-        )
+        log.info("Attempting proxy connection")
 
         # TODO(Florin): Handle connection failure (attempt another server)
         writer: Optional[StreamWriter] = None
         reader: Optional[StreamReader] = None
         for _ in range(10):
             try:
-                reader, writer = await asyncio.open_connection(ip, port)
-                # socket = writer.get_extra_info("socket")
-                # socket.settimeout(None)
+                reader, writer = await asyncio.open_connection(ip, '9999')
                 break
             except Exception as e:
                 e_to_str = str(e)
             await asyncio.sleep(1)
         if not writer or not reader:
             raise Exception("Unable to connect to VDF server")
+
+        writer.write(str(port).encode())
+        await writer.drain()
 
         writer.write((str(len(str(disc))) + str(disc)).encode())
         await writer.drain()
@@ -259,7 +257,6 @@ class Timelord:
                 async with self.lock:
                     writer.write(b"ACK")
                     await writer.drain()
-                    await proc.wait()
                     # Server is now available.
                     self.free_servers.append((ip, port))
                     len_server = len(self.free_servers)

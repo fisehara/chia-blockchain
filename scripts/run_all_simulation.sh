@@ -9,6 +9,7 @@ echo "Note that this simulation will not work if connected to external nodes."
 # Please note that the simulation is meant to be run locally and not connected to external nodes.
 
 _run_bg_cmd python -m src.server.start_harvester
+_run_bg_cmd python -m src.timelord_proxy
 _run_bg_cmd python -m src.server.start_timelord
 _run_bg_cmd python -m src.server.start_farmer
 _run_bg_cmd python -m src.server.start_introducer
