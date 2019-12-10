@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import signal
+import uvloop
 
 from src.server.outbound_message import NodeType
 from src.server.server import ChiaServer
@@ -41,5 +42,5 @@ async def main():
 
     await server.await_closed()
 
-
+uvloop.install()
 asyncio.run(main())
