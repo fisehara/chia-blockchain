@@ -195,6 +195,7 @@ class FullNode:
         asyncio.create_task(introducer_client())
 
     def _shutdown(self):
+        asyncio.create_task(self.store.close())
         self._shut_down = True
 
     async def _sync(self) -> OutboundMessageGenerator:

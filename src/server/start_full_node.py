@@ -55,7 +55,8 @@ async def main():
     db_id = 0
     if "-id" in sys.argv:
         db_id = int(sys.argv[sys.argv.index("-id") + 1])
-    store = FullNodeStore(f"fndb_{db_id}")
+    store = FullNodeStore(f"fndb_{db_id}.db")
+    await store.initialize()
 
     genesis: FullBlock = FullBlock.from_bytes(constants["GENESIS_BLOCK"])
     await store.add_block(genesis)

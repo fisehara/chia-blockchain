@@ -1,10 +1,7 @@
 import asyncio
 import logging
-from abc import ABC
 from typing import AsyncGenerator, Dict, List, Optional, Tuple
-from bson.binary import Binary
-from bson.codec_options import CodecOptions, TypeRegistry
-from motor import motor_asyncio
+import aiosqlite
 
 from src.types.body import Body
 from src.types.full_block import FullBlock
@@ -13,42 +10,14 @@ from src.types.header_block import HeaderBlock
 from src.types.proof_of_space import ProofOfSpace
 from src.types.sized_bytes import bytes32
 from src.util.ints import uint32, uint64
-from src.util.streamable import Streamable
 
 
 log = logging.getLogger(__name__)
 
 
-class Database(ABC):
+class FullNodeStore:
     def __init__(self, db_name):
-        loop = asyncio.get_event_loop()
-        client = motor_asyncio.AsyncIOMotorClient(
-            "mongodb://127.0.0.1:27017/", io_loop=loop
-        )
-        log.info("Connecting to mongodb database")
-        self.db = client.get_database(
-            db_name,
-            codec_options=CodecOptions(
-                type_registry=TypeRegistry(
-                    fallback_encoder=lambda obj: Binary(bytes(obj))
-                    if isinstance(obj, Streamable)
-                    else obj
-                )
-            ),
-        )
-        log.info("Connected to mongodb database")
-
-
-class FullNodeStore(Database):
-    def __init__(self, db_name):
-        super().__init__(db_name)
-
-        # Stored on database
-        # All full blocks which have been added to the blockchain. Header_hash -> block
-        self.full_blocks = self.db.get_collection("full_blocks")
-        # Blocks received from other peers during sync, cleared after sync
-        self.potential_blocks = self.db.get_collection("potential_blocks")
-
+        self.db_name = db_name
         # Stored in memory
         # Whether or not we are syncing
         self.sync_mode = False
@@ -89,27 +58,61 @@ class FullNodeStore(Database):
         # Lock
         self.lock = asyncio.Lock()  # external
 
+    async def initialize(self):
+        # # All full blocks which have been added to the blockchain. Header_hash -> block
+        self.db = await aiosqlite.connect(self.db_name)
+        await self.db.execute(
+            "CREATE TABLE IF NOT EXISTS blocks(header_hash text PRIMARY KEY, block blob)"
+        )
+        # # Blocks received from other peers during sync, cleared after sync
+        await self.db.execute(
+            "CREATE TABLE IF NOT EXISTS potential_blocks(height bigint PRIMARY KEY, block blob)"
+        )
+        await self.db.commit()
+
+    async def close(self):
+        await self.db.close()
+
     async def _clear_database(self):
-        await self.full_blocks.drop()
-        await self.potential_blocks.drop()
+        await self.db.execute("DELETE FROM blocks")
+        await self.db.execute("DELETE FROM potential_blocks")
+        await self.db.commit()
 
     async def add_block(self, block: FullBlock) -> None:
-        header_hash = block.header_hash
-        await self.full_blocks.find_one_and_update(
-            {"_id": header_hash},
-            {"$set": {"_id": header_hash, "block": block}},
-            upsert=True,
+        await self.db.execute(
+            "INSERT INTO blocks VALUES(?, ?)", (block.header_hash.hex(), bytes(block))
         )
+        await self.db.commit()
 
     async def get_block(self, header_hash: bytes32) -> Optional[FullBlock]:
-        query = await self.full_blocks.find_one({"_id": header_hash})
-        if query is not None:
-            return FullBlock.from_bytes(query["block"])
+        cursor = await self.db.execute(
+            "SELECT * from blocks WHERE header_hash=?", (header_hash.hex(),)
+        )
+        row = await cursor.fetchone()
+        if row is not None:
+            return FullBlock.from_bytes(row[1])
         return None
 
     async def get_blocks(self) -> AsyncGenerator[FullBlock, None]:
-        async for query in self.full_blocks.find({}):
-            yield FullBlock.from_bytes(query["block"])
+        cursor = await self.db.execute("SELECT * from blocks")
+        rows = await cursor.fetchall()
+        for row in rows:
+            yield FullBlock.from_bytes(row[1])
+
+    async def add_potential_block(self, block: FullBlock) -> None:
+        await self.db.execute(
+            "INSERT INTO potential_blocks VALUES(?, ?)", (block.height, bytes(block))
+        )
+        await self.db.commit()
+
+    async def get_potential_block(self, height: uint32) -> Optional[FullBlock]:
+        cursor = await self.db.execute(
+            "SELECT * from potential_blocks WHERE height=?", (height,)
+        )
+        row = await cursor.fetchone()
+        if row is not None:
+            return FullBlock.from_bytes(row[1])
+        return None
 
     async def add_disconnected_block(self, block: FullBlock) -> None:
         self.disconnected_blocks[block.header_hash] = block
@@ -139,7 +142,8 @@ class FullNodeStore(Database):
     async def clear_sync_info(self):
         self.potential_tips.clear()
         self.potential_headers.clear()
-        await self.potential_blocks.drop()
+        await self.db.execute("DELETE FROM potential_blocks")
+        await self.db.commit()
         self.potential_blocks_received.clear()
         self.potential_future_blocks.clear()
 
@@ -163,17 +167,6 @@ class FullNodeStore(Database):
 
     def get_potential_hashes(self) -> List[bytes32]:
         return self.potential_hashes
-
-    async def add_potential_block(self, block: FullBlock) -> None:
-        await self.potential_blocks.find_one_and_update(
-            {"_id": block.height},
-            {"$set": {"_id": block.height, "block": block}},
-            upsert=True,
-        )
-
-    async def get_potential_block(self, height: uint32) -> Optional[FullBlock]:
-        query = await self.potential_blocks.find_one({"_id": height})
-        return FullBlock.from_bytes(query["block"]) if query else None
 
     def set_potential_hashes_received(self, event: asyncio.Event):
         self.potential_hashes_received = event

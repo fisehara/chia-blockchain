@@ -40,6 +40,9 @@ pip-delete-this-directory.txt
 *.mo
 *.pot
 
+# Database
+*.db
+
 # pyenv
 .python-version
 .eggs

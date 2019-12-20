@@ -38,9 +38,12 @@ class TestDatabase:
     async def test_basic_database(self):
         blocks = bt.get_consecutive_blocks(test_constants, 9, [], 9, b"0")
 
-        db = FullNodeStore("fndb_test")
+        db = FullNodeStore("fndb_test.db")
+        await db.initialize()
         await db._clear_database()
         genesis = FullBlock.from_bytes(constants["GENESIS_BLOCK"])
+
+        assert await db.get_block(blocks[0].header_hash) is None
 
         # Save/get block
         for block in blocks:
@@ -116,3 +119,4 @@ class TestDatabase:
         assert db.seen_block(h_hash_1)
         db.clear_seen_blocks()
         assert not db.seen_block(h_hash_1)
+        await db.close()
