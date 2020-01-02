@@ -1,7 +1,7 @@
 import logging
 import time
 from enum import Enum
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional
 
 import blspy
 
@@ -12,9 +12,9 @@ from src.consensus.pot_iterations import (
     calculate_iterations_quality,
 )
 from src.types.full_block import FullBlock
-from src.types.header_block import HeaderBlock
+from src.types.header_block import SmallHeaderBlock, HeaderBlock
 from src.types.sized_bytes import bytes32
-from src.util.errors import BlockNotInBlockchain, InvalidGenesisBlock
+from src.util.errors import InvalidGenesisBlock
 from src.util.ints import uint32, uint64
 
 log = logging.getLogger(__name__)
@@ -43,15 +43,16 @@ class Blockchain:
         for key, value in override_constants.items():
             self.constants[key] = value
 
-        self.tips: List[HeaderBlock] = []
-        self.lca_block: HeaderBlock
+        self.tips: List[SmallHeaderBlock] = []
+        self.lca_block: SmallHeaderBlock
 
         # Defines the path from genesis to the tip
         self.height_to_hash: Dict[uint32, bytes32] = {}
-        # All headers (but not orphans) from genesis to the tip are guaranteed to be in header_blocks
-        self.header_blocks: Dict[bytes32, HeaderBlock] = {}
 
-    async def initialize(self, header_blocks: Dict[str, HeaderBlock]):
+        # All headers (but not orphans) from genesis to the tip are guaranteed to be in header_blocks
+        self.headers: Dict[bytes32, SmallHeaderBlock] = {}
+
+    async def initialize(self, small_header_blocks: Dict[str, SmallHeaderBlock]):
         self.genesis = FullBlock.from_bytes(self.constants["GENESIS_BLOCK"])
 
         result = await self.receive_block(self.genesis)
@@ -59,23 +60,25 @@ class Blockchain:
             raise InvalidGenesisBlock()
 
         assert self.lca_block is not None
-        if len(header_blocks) > 0:
-            self.header_blocks = header_blocks
-            for _, header_block in header_blocks.items():
-                self.height_to_hash[header_block.height] = header_block.header_hash
-            for _, header_block in header_blocks.items():
-                await self._reconsider_heads(header_block, False)
+        if len(small_header_blocks) > 0:
+            self.headers = small_header_blocks
+            for _, small_header_block in small_header_blocks.items():
+                self.height_to_hash[
+                    small_header_block.height
+                ] = small_header_block.header_hash
+            for _, small_header_block in small_header_blocks.items():
+                await self._reconsider_heads(small_header_block, False)
             assert (
-                self.header_blocks[self.height_to_hash[uint32(0)]]
+                self.headers[self.height_to_hash[uint32(0)]]
                 == self.genesis.header_block
             )
-        if len(header_blocks) > 1:
+        if len(small_header_blocks) > 1:
             assert (
-                self.header_blocks[self.height_to_hash[uint32(1)]].prev_header_hash
+                self.headers[self.height_to_hash[uint32(1)]].prev_header_hash
                 == self.genesis.header_hash
             )
 
-    def get_current_tips(self) -> List[HeaderBlock]:
+    def get_current_tips(self) -> List[SmallHeaderBlock]:
         """
         Return the heads.
         """
@@ -91,52 +94,22 @@ class Blockchain:
         return False
 
     def get_header_hashes(self, tip_header_hash: bytes32) -> List[bytes32]:
-        if tip_header_hash not in self.header_blocks:
+        if tip_header_hash not in self.headers:
             raise ValueError("Invalid tip requested")
 
-        curr = self.header_blocks[tip_header_hash]
+        curr = self.headers[tip_header_hash]
         ret_hashes = [tip_header_hash]
         while curr.height != 0:
-            curr = self.header_blocks[curr.prev_header_hash]
+            curr = self.headers[curr.prev_header_hash]
             ret_hashes.append(curr.header_hash)
         return list(reversed(ret_hashes))
-
-    def get_header_blocks_by_height(
-        self, heights: List[uint32], tip_header_hash: bytes32
-    ) -> List[HeaderBlock]:
-        """
-        Returns a list of header blocks, one for each height requested.
-        """
-        if len(heights) == 0:
-            return []
-
-        sorted_heights = sorted(
-            [(height, index) for index, height in enumerate(heights)], reverse=True
-        )
-
-        curr_block: Optional[HeaderBlock] = self.header_blocks[tip_header_hash]
-
-        if curr_block is None:
-            raise BlockNotInBlockchain(
-                f"Header hash {tip_header_hash} not present in chain."
-            )
-        headers: List[Tuple[int, HeaderBlock]] = []
-        for height, index in sorted_heights:
-            if height > curr_block.height:
-                raise ValueError("Height is not valid for tip {tip_header_hash}")
-            while height < curr_block.height:
-                curr_block = self.header_blocks.get(curr_block.prev_header_hash, None)
-                if curr_block is None:
-                    raise ValueError(f"Do not have header {height}")
-            headers.append((index, curr_block))
-        return [b for index, b in sorted(headers)]
 
     def find_fork_point(self, alternate_chain: List[bytes32]) -> uint32:
         """
         Takes in an alternate blockchain (headers), and compares it to self. Returns the last header
         where both blockchains are equal.
         """
-        lca: HeaderBlock = self.lca_block
+        lca: SmallHeaderBlock = self.lca_block
 
         if lca.height >= len(alternate_chain) - 1:
             raise ValueError("Alternate chain is shorter")
@@ -168,7 +141,7 @@ class Blockchain:
         Returns the difficulty of the next block that extends onto header_hash.
         Used to calculate the number of iterations.
         """
-        block: HeaderBlock = self.header_blocks[header_hash]
+        block: SmallHeaderBlock = self.headers[header_hash]
 
         next_height: uint32 = uint32(block.height + 1)
         if next_height < self.constants["DIFFICULTY_EPOCH"]:
@@ -183,7 +156,7 @@ class Blockchain:
             != self.constants["DIFFICULTY_DELAY"]
         ):
             # Not at a point where difficulty would change
-            prev_block: HeaderBlock = self.header_blocks[block.prev_header_hash]
+            prev_block: SmallHeaderBlock = self.headers[block.prev_header_hash]
             assert block.challenge is not None
             assert prev_block is not None and prev_block.challenge is not None
             if prev_block is None:
@@ -214,7 +187,7 @@ class Blockchain:
         if block not in self.get_current_tips() or height3 not in self.height_to_hash:
             # This means we are either on a fork, or on one of the chains, but after the LCA,
             # so we manually backtrack.
-            curr: Optional[HeaderBlock] = block
+            curr: Optional[SmallHeaderBlock] = block
             assert curr is not None
             while (
                 curr.height not in self.height_to_hash
@@ -226,16 +199,16 @@ class Blockchain:
                     block2 = curr
                 elif curr.height == height3:
                     block3 = curr
-                curr = self.header_blocks.get(curr.prev_header_hash, None)
+                curr = self.headers.get(curr.prev_header_hash, None)
                 assert curr is not None
         # Once we are before the fork point (and before the LCA), we can use the height_to_hash map
         if not block1 and height1 >= 0:
             # height1 could be -1, for the first difficulty calculation
-            block1 = self.header_blocks[self.height_to_hash[height1]]
+            block1 = self.headers[self.height_to_hash[height1]]
         if not block2:
-            block2 = self.header_blocks[self.height_to_hash[height2]]
+            block2 = self.headers[self.height_to_hash[height2]]
         if not block3:
-            block3 = self.header_blocks[self.height_to_hash[height3]]
+            block3 = self.headers[self.height_to_hash[height3]]
         assert block2 is not None and block3 is not None
 
         # Current difficulty parameter (diff of block h = i - 1)
@@ -248,7 +221,7 @@ class Blockchain:
         else:
             # In the case of height == -1, there is no timestamp here, so assume the genesis block
             # took constants["BLOCK_TIME_TARGET"] seconds to mine.
-            genesis = self.header_blocks[self.height_to_hash[uint32(0)]]
+            genesis = self.headers[self.height_to_hash[uint32(0)]]
             timestamp1 = (
                 genesis.header.data.timestamp - self.constants["BLOCK_TIME_TARGET"]
             )
@@ -293,12 +266,12 @@ class Blockchain:
                 ]
             )
 
-    def get_next_ips(self, header_hash) -> uint64:
+    def get_next_ips(self, header_block: HeaderBlock) -> uint64:
         """
         Returns the VDF speed in iterations per seconds, to be used for the next block. This depends on
         the number of iterations of the last epoch, and changes at the same block as the difficulty.
         """
-        block: HeaderBlock = self.header_blocks[header_hash]
+        block: SmallHeaderBlock = self.headers[header_block.header_hash]
         assert block.challenge is not None
 
         next_height: uint32 = uint32(block.height + 1)
@@ -306,16 +279,18 @@ class Blockchain:
             # First epoch has a hardcoded vdf speed
             return self.constants["VDF_IPS_STARTING"]
 
-        prev_block: HeaderBlock = self.header_blocks[block.prev_header_hash]
+        prev_block: SmallHeaderBlock = self.headers[block.prev_header_hash]
         assert prev_block.challenge is not None
 
-        proof_of_space = block.proof_of_space
         difficulty = self.get_next_difficulty(prev_block.header_hash)
         iterations = uint64(
             block.challenge.total_iters - prev_block.challenge.total_iters
         )
         prev_ips = calculate_ips_from_iterations(
-            proof_of_space, difficulty, iterations, self.constants["MIN_BLOCK_TIME"]
+            header_block.proof_of_space,
+            difficulty,
+            iterations,
+            self.constants["MIN_BLOCK_TIME"],
         )
 
         if (
@@ -341,12 +316,12 @@ class Blockchain:
         # Height2 is the last block in the previous epoch
         height2 = uint32(next_height - self.constants["DIFFICULTY_DELAY"] - 1)
 
-        block1: Optional[HeaderBlock] = None
-        block2: Optional[HeaderBlock] = None
+        block1: Optional[SmallHeaderBlock] = None
+        block2: Optional[SmallHeaderBlock] = None
         if block not in self.get_current_tips() or height2 not in self.height_to_hash:
             # This means we are either on a fork, or on one of the chains, but after the LCA,
             # so we manually backtrack.
-            curr: Optional[HeaderBlock] = block
+            curr: Optional[SmallHeaderBlock] = block
             assert curr is not None
             while (
                 curr.height not in self.height_to_hash
@@ -356,14 +331,14 @@ class Blockchain:
                     block1 = curr
                 elif curr.height == height2:
                     block2 = curr
-                curr = self.header_blocks.get(curr.prev_header_hash, None)
+                curr = self.headers.get(curr.prev_header_hash, None)
                 assert curr is not None
         # Once we are before the fork point (and before the LCA), we can use the height_to_hash map
         if block1 is None and height1 >= 0:
             # height1 could be -1, for the first difficulty calculation
-            block1 = self.header_blocks.get(self.height_to_hash[height1], None)
+            block1 = self.headers.get(self.height_to_hash[height1], None)
         if block2 is None:
-            block2 = self.header_blocks.get(self.height_to_hash[height2], None)
+            block2 = self.headers.get(self.height_to_hash[height2], None)
         assert block2 is not None
         assert block2.challenge is not None
 
@@ -374,7 +349,7 @@ class Blockchain:
         else:
             # In the case of height == -1, there is no timestamp here, so assume the genesis block
             # took constants["BLOCK_TIME_TARGET"] seconds to mine.
-            genesis: HeaderBlock = self.header_blocks[self.height_to_hash[uint32(0)]]
+            genesis: SmallHeaderBlock = self.headers[self.height_to_hash[uint32(0)]]
             timestamp1 = (
                 genesis.header.data.timestamp - self.constants["BLOCK_TIME_TARGET"]
             )
@@ -394,26 +369,32 @@ class Blockchain:
                 [uint64(1), new_ips, uint64(prev_ips // self.constants["IPS_FACTOR"])]
             )
 
-    async def receive_block(self, block: FullBlock) -> ReceiveBlockResult:
+    async def receive_block(
+        self, block: FullBlock, prev_block: Optional[HeaderBlock] = None
+    ) -> ReceiveBlockResult:
         """
         Adds a new block into the blockchain, if it's valid and connected to the current
         blockchain, regardless of whether it is the child of a head, or another block.
         """
         genesis: bool = block.height == 0 and not self.tips
 
-        if block.header_hash in self.header_blocks:
+        if block.header_hash in self.headers:
             return ReceiveBlockResult.ALREADY_HAVE_BLOCK
 
-        if block.prev_header_hash not in self.header_blocks and not genesis:
+        if block.prev_header_hash not in self.headers and not genesis:
             return ReceiveBlockResult.DISCONNECTED_BLOCK
 
-        if not await self.validate_block(block, genesis):
+        if not await self.validate_block(block, prev_block, genesis):
             return ReceiveBlockResult.INVALID_BLOCK
 
         # Cache header in memory
-        self.header_blocks[block.header_hash] = block.header_block
+        assert block.header_block.challenge is not None
+        small_header_block = SmallHeaderBlock(
+            block.header_block.header, block.header_block.challenge
+        )
 
-        if await self._reconsider_heads(block.header_block, genesis):
+        self.headers[block.header_hash] = small_header_block
+        if await self._reconsider_heads(small_header_block, genesis):
             return ReceiveBlockResult.ADDED_TO_HEAD
         else:
             return ReceiveBlockResult.ADDED_AS_ORPHAN
@@ -427,21 +408,21 @@ class Blockchain:
         and challenge validation.
         """
         # 1. Check previous pointer(s) / flyclient
-        if not genesis and block.prev_header_hash not in self.header_blocks:
+        if not genesis and block.prev_header_hash not in self.headers:
             return False
 
         # 2. Check Now+2hrs > timestamp > avg timestamp of last 11 blocks
-        prev_block: Optional[HeaderBlock] = None
+        prev_block: Optional[SmallHeaderBlock] = None
         if not genesis:
             # TODO: do something about first 11 blocks
             last_timestamps: List[uint64] = []
-            prev_block = self.header_blocks.get(block.prev_header_hash, None)
+            prev_block = self.headers.get(block.prev_header_hash, None)
             if not prev_block:
                 return False
             curr = prev_block
             while len(last_timestamps) < self.constants["NUMBER_OF_TIMESTAMPS"]:
                 last_timestamps.append(curr.header.data.timestamp)
-                fetched = self.header_blocks.get(curr.prev_header_hash, None)
+                fetched = self.headers.get(curr.prev_header_hash, None)
                 if not fetched:
                     break
                 curr = fetched
@@ -535,7 +516,12 @@ class Blockchain:
         # TODO: 17. check cost
         return True
 
-    async def validate_block(self, block: FullBlock, genesis: bool = False) -> bool:
+    async def validate_block(
+        self,
+        block: FullBlock,
+        prev_block: Optional[HeaderBlock] = None,
+        genesis: bool = False,
+    ) -> bool:
         """
         Block validation algorithm. Returns true iff the candidate block is fully valid,
         and extends something in the blockchain.
@@ -548,7 +534,8 @@ class Blockchain:
         ips: uint64
         if not genesis:
             difficulty = self.get_next_difficulty(block.prev_header_hash)
-            ips = self.get_next_ips(block.prev_header_hash)
+            assert prev_block is not None
+            ips = self.get_next_ips(prev_block)
         else:
             difficulty = uint64(self.constants["DIFFICULTY_STARTING"])
             ips = uint64(self.constants["VDF_IPS_STARTING"])
@@ -589,9 +576,6 @@ class Blockchain:
             return False
 
         if not genesis:
-            prev_block: Optional[HeaderBlock] = self.header_blocks.get(
-                block.prev_header_hash, None
-            )
             if not prev_block or not prev_block.challenge:
                 return False
 
@@ -634,47 +618,49 @@ class Blockchain:
 
         return True
 
-    def _reconsider_heights(self, old_lca: Optional[HeaderBlock], new_lca: HeaderBlock):
+    def _reconsider_heights(
+        self, old_lca: Optional[SmallHeaderBlock], new_lca: SmallHeaderBlock
+    ):
         """
         Update the mapping from height to block hash, when the lca changes.
         """
-        curr_old: Optional[HeaderBlock] = old_lca if old_lca else None
-        curr_new: HeaderBlock = new_lca
+        curr_old: Optional[SmallHeaderBlock] = old_lca if old_lca else None
+        curr_new: SmallHeaderBlock = new_lca
         while True:
-            fetched: Optional[HeaderBlock]
+            fetched: Optional[SmallHeaderBlock]
             if not curr_old or curr_old.height < curr_new.height:
                 self.height_to_hash[uint32(curr_new.height)] = curr_new.header_hash
-                self.header_blocks[curr_new.header_hash] = curr_new
+                self.headers[curr_new.header_hash] = curr_new
                 if curr_new.height == 0:
                     return
-                curr_new = self.header_blocks[curr_new.prev_header_hash]
+                curr_new = self.headers[curr_new.prev_header_hash]
             elif curr_old.height > curr_new.height:
                 del self.height_to_hash[uint32(curr_old.height)]
-                curr_old = self.header_blocks[curr_old.prev_header_hash]
+                curr_old = self.headers[curr_old.prev_header_hash]
             else:
                 if curr_new.header_hash == curr_old.header_hash:
                     return
                 self.height_to_hash[uint32(curr_new.height)] = curr_new.header_hash
-                curr_new = self.header_blocks[curr_new.prev_header_hash]
-                curr_old = self.header_blocks[curr_old.prev_header_hash]
+                curr_new = self.headers[curr_new.prev_header_hash]
+                curr_old = self.headers[curr_old.prev_header_hash]
 
     async def _reconsider_lca(self, genesis: bool):
         """
         Update the least common ancestor of the heads. This is useful, since we can just assume
         there is one block per height before the LCA (and use the height_to_hash dict).
         """
-        cur: List[HeaderBlock] = self.tips[:]
+        cur: List[SmallHeaderBlock] = self.tips[:]
         while any(b.header_hash != cur[0].header_hash for b in cur):
             heights = [b.height for b in cur]
             i = heights.index(max(heights))
-            cur[i] = self.header_blocks[cur[i].prev_header_hash]
+            cur[i] = self.headers[cur[i].prev_header_hash]
         if genesis:
             self._reconsider_heights(None, cur[0])
         else:
             self._reconsider_heights(self.lca_block, cur[0])
         self.lca_block = cur[0]
 
-    async def _reconsider_heads(self, block: HeaderBlock, genesis: bool) -> bool:
+    async def _reconsider_heads(self, block: SmallHeaderBlock, genesis: bool) -> bool:
         """
         When a new block is added, this is called, to check if the new block is heavier
         than one of the heads.

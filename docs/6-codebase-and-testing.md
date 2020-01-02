@@ -59,7 +59,7 @@ If the node is only a few blocks behind, a series of `RequestBlock` messages wil
 
 ## State and persistance
 
-The reference implementation currently uses a mongodb database for persistance and this may change.
+The reference implementation currently uses a sqlite database for persistance and this may change.
 The database is only used by the full node, and it's only used to store full blocks that have been validated, and blocks that are downloaded during sync.
 The sync blocks collection is cleared after sync is done.
 

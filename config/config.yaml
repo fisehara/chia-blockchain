@@ -56,8 +56,6 @@ full_node:
   port: 8444
   enable_upnp: True
   # Don't send any more than these number of headers and blocks, in one message
-  max_headers_to_send: 25
-  max_blocks_to_send: 5
   num_sync_batches: 10
 
   # If node is more than these blocks behind, will do a sync

@@ -49,7 +49,7 @@ class TestNodeLoad:
         await b.initialize({})
         for i in range(1, 9):
             assert (
-                await b.receive_block(blocks[i])
+                await b.receive_block(blocks[i], blocks[i - 1].header_block)
             ) == ReceiveBlockResult.ADDED_TO_HEAD
             await store.add_block(blocks[i])
 
@@ -66,7 +66,7 @@ class TestNodeLoad:
 
         await asyncio.sleep(2)  # Allow connections to get made
 
-        num_unfinished_blocks = 1000
+        num_unfinished_blocks = 100
         start_unf = time.time()
         for i in range(num_unfinished_blocks):
             msg = Message("unfinished_block", peer_protocol.UnfinishedBlock(blocks[9]))
@@ -82,9 +82,6 @@ class TestNodeLoad:
 
         while time.time() - start_unf < 300:
             if max([h.height for h in b.get_current_tips()]) == 9:
-                print(
-                    f"Time taken to process {num_unfinished_blocks} is {time.time() - start_unf}"
-                )
                 server_1.close_all()
                 server_2.close_all()
                 await server_1.await_closed()

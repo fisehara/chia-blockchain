@@ -13,7 +13,7 @@ from src.server.outbound_message import NodeType
 from src.server.server import ChiaServer
 from src.consensus.constants import constants
 from src.types.peer_info import PeerInfo
-from src.types.header_block import HeaderBlock
+from src.types.header_block import SmallHeaderBlock
 from src.util.network import parse_host_port
 from src.types.full_block import FullBlock
 
@@ -29,18 +29,20 @@ server_closed = False
 
 async def load_header_blocks_from_store(
     store: FullNodeStore,
-) -> Dict[str, HeaderBlock]:
-    seen_blocks: Dict[str, HeaderBlock] = {}
-    tips: List[HeaderBlock] = []
-    async for full_block in store.get_blocks():
-        if not tips or full_block.weight > tips[0].weight:
-            tips = [full_block.header_block]
-        seen_blocks[full_block.header_hash] = full_block.header_block
+) -> Dict[str, SmallHeaderBlock]:
+    blocks = await store.get_small_header_blocks()
+
+    seen_blocks: Dict[str, SmallHeaderBlock] = {}
+    tips: List[SmallHeaderBlock] = []
+    for small_block in blocks:
+        if not tips or small_block.weight > tips[0].weight:
+            tips = [small_block]
+        seen_blocks[small_block.header_hash] = small_block
 
     header_blocks = {}
     if len(tips) > 0:
-        curr: HeaderBlock = tips[0]
-        reverse_blocks: List[HeaderBlock] = [curr]
+        curr: SmallHeaderBlock = tips[0]
+        reverse_blocks: List[SmallHeaderBlock] = [curr]
         while curr.height > 0:
             curr = seen_blocks[curr.prev_header_hash]
             reverse_blocks.append(curr)
@@ -62,7 +64,9 @@ async def main():
     await store.add_block(genesis)
 
     log.info("Initializing blockchain from disk")
-    header_blocks: Dict[str, HeaderBlock] = await load_header_blocks_from_store(store)
+    header_blocks: Dict[str, SmallHeaderBlock] = await load_header_blocks_from_store(
+        store
+    )
     blockchain = Blockchain()
     await blockchain.initialize(header_blocks)
 

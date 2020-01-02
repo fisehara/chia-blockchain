@@ -27,6 +27,7 @@ class ProofOfSpaceFinalized:
 @dataclass(frozen=True)
 @cbor_message
 class ProofOfSpaceArrived:
+    previous_challenge_hash: bytes32
     weight: uint64
     quality: bytes32
 

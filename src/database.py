@@ -1,6 +1,6 @@
 import asyncio
 import logging
-from typing import AsyncGenerator, Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 import aiosqlite
 
 from src.types.body import Body
@@ -9,6 +9,7 @@ from src.types.header import HeaderData
 from src.types.header_block import HeaderBlock
 from src.types.proof_of_space import ProofOfSpace
 from src.types.sized_bytes import bytes32
+from src.types.header_block import SmallHeaderBlock
 from src.util.ints import uint32, uint64
 
 
@@ -59,15 +60,30 @@ class FullNodeStore:
         self.lock = asyncio.Lock()  # external
 
     async def initialize(self):
-        # # All full blocks which have been added to the blockchain. Header_hash -> block
+        # All full blocks which have been added to the blockchain. Header_hash -> block
         self.db = await aiosqlite.connect(self.db_name)
         await self.db.execute(
-            "CREATE TABLE IF NOT EXISTS blocks(header_hash text PRIMARY KEY, block blob)"
+            "CREATE TABLE IF NOT EXISTS blocks(height bigint, header_hash text PRIMARY KEY, block blob)"
         )
-        # # Blocks received from other peers during sync, cleared after sync
+
+        # Blocks received from other peers during sync, cleared after sync
         await self.db.execute(
             "CREATE TABLE IF NOT EXISTS potential_blocks(height bigint PRIMARY KEY, block blob)"
         )
+
+        # Headers
+        await self.db.execute(
+            "CREATE TABLE IF NOT EXISTS small_header_blocks(height bigint, header_hash "
+            "text PRIMARY KEY, small_header_block blob)"
+        )
+        # Height index so we can look up in order of height for sync purposes
+        await self.db.execute(
+            "CREATE INDEX IF NOT EXISTS block_height on blocks(height)"
+        )
+        await self.db.execute(
+            "CREATE INDEX IF NOT EXISTS small_header__block_height on small_header_blocks(height)"
+        )
+
         await self.db.commit()
 
     async def close(self):
@@ -76,12 +92,29 @@ class FullNodeStore:
     async def _clear_database(self):
         await self.db.execute("DELETE FROM blocks")
         await self.db.execute("DELETE FROM potential_blocks")
+        await self.db.execute("DELETE FROM small_header_blocks")
         await self.db.commit()
 
     async def add_block(self, block: FullBlock) -> None:
         await self.db.execute(
-            "INSERT INTO blocks VALUES(?, ?) ON CONFLICT(header_hash) DO UPDATE SET block=?",
-            (block.header_hash.hex(), bytes(block), bytes(block)),
+            "INSERT INTO blocks VALUES(?, ?, ?) ON CONFLICT(header_hash) DO UPDATE SET block=?",
+            (block.height, block.header_hash.hex(), bytes(block), bytes(block)),
+        )
+        assert block.header_block.challenge is not None
+        small_header_block: SmallHeaderBlock = SmallHeaderBlock(
+            block.header_block.header, block.header_block.challenge
+        )
+        await self.db.execute(
+            (
+                "INSERT INTO small_header_blocks VALUES(?, ?, ?) "
+                "ON CONFLICT(header_hash) DO UPDATE SET small_header_block=?"
+            ),
+            (
+                block.height,
+                block.header_hash.hex(),
+                bytes(small_header_block),
+                bytes(small_header_block),
+            ),
         )
         await self.db.commit()
 
@@ -91,14 +124,13 @@ class FullNodeStore:
         )
         row = await cursor.fetchone()
         if row is not None:
-            return FullBlock.from_bytes(row[1])
+            return FullBlock.from_bytes(row[2])
         return None
 
-    async def get_blocks(self) -> AsyncGenerator[FullBlock, None]:
-        cursor = await self.db.execute("SELECT * from blocks")
+    async def get_small_header_blocks(self) -> List[SmallHeaderBlock]:
+        cursor = await self.db.execute("SELECT * from small_header_blocks")
         rows = await cursor.fetchall()
-        for row in rows:
-            yield FullBlock.from_bytes(row[1])
+        return [SmallHeaderBlock.from_bytes(row[2]) for row in rows]
 
     async def add_potential_block(self, block: FullBlock) -> None:
         await self.db.execute(

@@ -8,12 +8,20 @@ from src.types.proof_of_time import ProofOfTime
 from src.types.sized_bytes import bytes32
 from src.types.transaction import Transaction
 from src.util.cbor_message import cbor_message
-from src.util.ints import uint32
+from src.util.ints import uint32, uint64
 
 
 """
 Protocol between full nodes.
 """
+
+
+@dataclass(frozen=True)
+@cbor_message
+class NewTip:
+    height: uint32
+    weight: uint64
+    header_hash: bytes32
 
 
 @dataclass(frozen=True)
@@ -86,27 +94,12 @@ class AllHeaderHashes:
 
 @dataclass(frozen=True)
 @cbor_message
-class RequestHeaderBlocks:
-    tip_header_hash: bytes32
-    heights: List[uint32]
+class RequestHeaderBlock:
+    height: uint32
+    header_hash: bytes32
 
 
 @dataclass(frozen=True)
 @cbor_message
-class HeaderBlocks:
-    tip_header_hash: bytes32
-    header_blocks: List[HeaderBlock]
-
-
-@dataclass(frozen=True)
-@cbor_message
-class RequestSyncBlocks:
-    tip_header_hash: bytes32
-    heights: List[uint32]
-
-
-@dataclass(frozen=True)
-@cbor_message
-class SyncBlocks:
-    tip_header_hash: bytes32
-    blocks: List[FullBlock]
+class RespondHeaderBlock:
+    header_block: HeaderBlock

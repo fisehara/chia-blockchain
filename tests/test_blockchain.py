@@ -45,16 +45,13 @@ class TestGenesisBlock:
         bc1: Blockchain = Blockchain()
         await bc1.initialize({})
         assert len(bc1.get_current_tips()) == 1
-        genesis_block = bc1.get_current_tips()[0]
+        genesis_block = bc1.genesis
         assert genesis_block.height == 0
-        assert genesis_block.challenge
-        assert (
-            bc1.get_header_blocks_by_height([uint32(0)], genesis_block.header_hash)
-        )[0] == genesis_block
+        assert genesis_block.header_block.challenge
         assert (
             bc1.get_next_difficulty(genesis_block.header_hash)
-        ) == genesis_block.challenge.total_weight
-        assert bc1.get_next_ips(genesis_block.header_hash) > 0
+        ) == genesis_block.header_block.challenge.total_weight
+        assert bc1.get_next_ips(genesis_block.header_block) > 0
 
 
 class TestBlockValidation:
@@ -68,7 +65,7 @@ class TestBlockValidation:
         await b.initialize({})
         for i in range(1, 9):
             assert (
-                await b.receive_block(blocks[i])
+                await b.receive_block(blocks[i], blocks[i - 1].header_block)
             ) == ReceiveBlockResult.ADDED_TO_HEAD
         return (blocks, b)
 
@@ -95,7 +92,7 @@ class TestBlockValidation:
             blocks[9].body,
         )
         assert (
-            await b.receive_block(block_bad)
+            await b.receive_block(block_bad, blocks[8].header_block)
         ) == ReceiveBlockResult.DISCONNECTED_BLOCK
 
     @pytest.mark.asyncio
@@ -121,7 +118,9 @@ class TestBlockValidation:
             ),
             blocks[9].body,
         )
-        assert (await b.receive_block(block_bad)) == ReceiveBlockResult.INVALID_BLOCK
+        assert (
+            await b.receive_block(block_bad, blocks[8].header_block)
+        ) == ReceiveBlockResult.INVALID_BLOCK
 
         # Time too far in the future
         block_bad = FullBlock(
@@ -144,7 +143,9 @@ class TestBlockValidation:
             blocks[9].body,
         )
 
-        assert (await b.receive_block(block_bad)) == ReceiveBlockResult.INVALID_BLOCK
+        assert (
+            await b.receive_block(block_bad, blocks[8].header_block)
+        ) == ReceiveBlockResult.INVALID_BLOCK
 
     @pytest.mark.asyncio
     async def test_body_hash(self, initial_blockchain):
@@ -169,7 +170,9 @@ class TestBlockValidation:
             blocks[9].body,
         )
 
-        assert (await b.receive_block(block_bad)) == ReceiveBlockResult.INVALID_BLOCK
+        assert (
+            await b.receive_block(block_bad, blocks[8].header_block)
+        ) == ReceiveBlockResult.INVALID_BLOCK
 
     @pytest.mark.asyncio
     async def test_harvester_signature(self, initial_blockchain):
@@ -187,7 +190,9 @@ class TestBlockValidation:
             ),
             blocks[9].body,
         )
-        assert (await b.receive_block(block_bad)) == ReceiveBlockResult.INVALID_BLOCK
+        assert (
+            await b.receive_block(block_bad, blocks[8].header_block)
+        ) == ReceiveBlockResult.INVALID_BLOCK
 
     @pytest.mark.asyncio
     async def test_invalid_pos(self, initial_blockchain):
@@ -211,7 +216,9 @@ class TestBlockValidation:
             ),
             blocks[9].body,
         )
-        assert (await b.receive_block(block_bad)) == ReceiveBlockResult.INVALID_BLOCK
+        assert (
+            await b.receive_block(block_bad, blocks[8].header_block)
+        ) == ReceiveBlockResult.INVALID_BLOCK
 
     @pytest.mark.asyncio
     async def test_invalid_coinbase_height(self, initial_blockchain):
@@ -233,7 +240,9 @@ class TestBlockValidation:
                 blocks[9].body.cost,
             ),
         )
-        assert (await b.receive_block(block_bad)) == ReceiveBlockResult.INVALID_BLOCK
+        assert (
+            await b.receive_block(block_bad, blocks[8].header_block)
+        ) == ReceiveBlockResult.INVALID_BLOCK
 
     @pytest.mark.asyncio
     async def test_difficulty_change(self):
@@ -245,7 +254,7 @@ class TestBlockValidation:
         await b.initialize({})
         for i in range(1, num_blocks):
             assert (
-                await b.receive_block(blocks[i])
+                await b.receive_block(blocks[i], blocks[i - 1].header_block)
             ) == ReceiveBlockResult.ADDED_TO_HEAD
 
         diff_25 = b.get_next_difficulty(blocks[24].header_hash)
@@ -256,18 +265,18 @@ class TestBlockValidation:
         assert diff_27 > diff_26
         assert (diff_27 / diff_26) <= test_constants["DIFFICULTY_FACTOR"]
 
-        assert (b.get_next_ips(blocks[1].header_hash)) == constants["VDF_IPS_STARTING"]
-        assert (b.get_next_ips(blocks[24].header_hash)) == (
-            b.get_next_ips(blocks[23].header_hash)
+        assert (b.get_next_ips(blocks[1].header_block)) == constants["VDF_IPS_STARTING"]
+        assert (b.get_next_ips(blocks[24].header_block)) == (
+            b.get_next_ips(blocks[23].header_block)
         )
-        assert (b.get_next_ips(blocks[25].header_hash)) == (
-            b.get_next_ips(blocks[24].header_hash)
+        assert (b.get_next_ips(blocks[25].header_block)) == (
+            b.get_next_ips(blocks[24].header_block)
         )
-        assert (b.get_next_ips(blocks[26].header_hash)) > (
-            b.get_next_ips(blocks[25].header_hash)
+        assert (b.get_next_ips(blocks[26].header_block)) > (
+            b.get_next_ips(blocks[25].header_block)
         )
-        assert (b.get_next_ips(blocks[27].header_hash)) == (
-            b.get_next_ips(blocks[26].header_hash)
+        assert (b.get_next_ips(blocks[27].header_block)) == (
+            b.get_next_ips(blocks[26].header_block)
         )
 
 
@@ -278,15 +287,18 @@ class TestReorgs:
         b: Blockchain = Blockchain(test_constants)
         await b.initialize({})
 
-        for block in blocks:
-            await b.receive_block(block)
+        for i in range(1, len(blocks)):
+            await b.receive_block(blocks[i], blocks[i - 1].header_block)
         assert b.get_current_tips()[0].height == 100
 
         blocks_reorg_chain = bt.get_consecutive_blocks(
             test_constants, 30, blocks[:90], 9, b"1"
         )
-        for reorg_block in blocks_reorg_chain:
-            result = await b.receive_block(reorg_block)
+        for i in range(1, len(blocks_reorg_chain)):
+            reorg_block = blocks_reorg_chain[i]
+            result = await b.receive_block(
+                reorg_block, blocks_reorg_chain[i - 1].header_block
+            )
             if reorg_block.height < 90:
                 assert result == ReceiveBlockResult.ALREADY_HAVE_BLOCK
             elif reorg_block.height < 99:
@@ -300,19 +312,21 @@ class TestReorgs:
         blocks = bt.get_consecutive_blocks(test_constants, 20, [], 9, b"0")
         b: Blockchain = Blockchain(test_constants)
         await b.initialize({})
-        for block in blocks:
-            await b.receive_block(block)
+        for i in range(1, len(blocks)):
+            await b.receive_block(blocks[i], blocks[i - 1].header_block)
         assert b.get_current_tips()[0].height == 20
 
         # Reorg from genesis
         blocks_reorg_chain = bt.get_consecutive_blocks(
             test_constants, 21, [blocks[0]], 9, b"1"
         )
-        for reorg_block in blocks_reorg_chain:
-            result = await b.receive_block(reorg_block)
-            if reorg_block.height == 0:
+        for i in range(1, len(blocks_reorg_chain)):
+            result = await b.receive_block(
+                blocks_reorg_chain[i], blocks_reorg_chain[i - 1].header_block
+            )
+            if blocks_reorg_chain[i].height == 0:
                 assert result == ReceiveBlockResult.ALREADY_HAVE_BLOCK
-            elif reorg_block.height < 19:
+            elif blocks_reorg_chain[i].height < 19:
                 assert result == ReceiveBlockResult.ADDED_AS_ORPHAN
             else:
                 assert result == ReceiveBlockResult.ADDED_TO_HEAD
@@ -323,13 +337,17 @@ class TestReorgs:
             test_constants, 3, blocks, 9, b"3"
         )
         await b.receive_block(
-            blocks_reorg_chain_2[20]
+            blocks_reorg_chain_2[20], blocks_reorg_chain[19].header_block
         ) == ReceiveBlockResult.ADDED_AS_ORPHAN
         assert (
-            await b.receive_block(blocks_reorg_chain_2[21])
+            await b.receive_block(
+                blocks_reorg_chain_2[21], blocks_reorg_chain_2[20].header_block
+            )
         ) == ReceiveBlockResult.ADDED_TO_HEAD
         assert (
-            await b.receive_block(blocks_reorg_chain_2[22])
+            await b.receive_block(
+                blocks_reorg_chain_2[22], blocks_reorg_chain_2[21].header_block
+            )
         ) == ReceiveBlockResult.ADDED_TO_HEAD
 
     @pytest.mark.asyncio
@@ -337,30 +355,30 @@ class TestReorgs:
         blocks = bt.get_consecutive_blocks(test_constants, 5, [], 9, b"0")
         b: Blockchain = Blockchain(test_constants)
         await b.initialize({})
-        for block in blocks:
-            await b.receive_block(block)
+        for i in range(1, len(blocks)):
+            await b.receive_block(blocks[i], blocks[i - 1].header_block)
 
-        assert b.lca_block == blocks[3].header_block
+        assert b.lca_block.header_hash == blocks[3].header_hash
         block_5_2 = bt.get_consecutive_blocks(test_constants, 1, blocks[:5], 9, b"1")[5]
         block_5_3 = bt.get_consecutive_blocks(test_constants, 1, blocks[:5], 9, b"2")[5]
 
-        await b.receive_block(block_5_2)
-        assert b.lca_block == blocks[4].header_block
-        await b.receive_block(block_5_3)
-        assert b.lca_block == blocks[4].header_block
+        await b.receive_block(block_5_2, blocks[-2].header_block)
+        assert b.lca_block.header_hash == blocks[4].header_hash
+        await b.receive_block(block_5_3, blocks[-2].header_block)
+        assert b.lca_block.header_hash == blocks[4].header_hash
 
         reorg = bt.get_consecutive_blocks(test_constants, 6, [], 9, b"3")
-        for block in reorg:
-            await b.receive_block(block)
-        assert b.lca_block == blocks[0].header_block
+        for i in range(1, len(reorg)):
+            await b.receive_block(reorg[i], reorg[i - 1].header_block)
+        assert b.lca_block.header_hash == blocks[0].header_hash
 
     @pytest.mark.asyncio
     async def test_get_header_hashes(self):
         blocks = bt.get_consecutive_blocks(test_constants, 5, [], 9, b"0")
         b: Blockchain = Blockchain(test_constants)
         await b.initialize({})
-        for block in blocks:
-            await b.receive_block(block)
+        for i in range(1, len(blocks)):
+            await b.receive_block(blocks[i], blocks[i - 1].header_block)
         header_hashes = b.get_header_hashes(blocks[-1].header_hash)
         assert len(header_hashes) == 6
         print(header_hashes)

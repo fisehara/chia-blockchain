@@ -1,5 +1,5 @@
 # chia-blockchain
-Python 3.7 is used for this project. Make sure your default python version is >=3.7 by typing python3. 
+Python 3.7 is used for this project. Make sure your default python version is >=3.7 by typing python3.
 
 You will need to enable [UPnP](https://www.homenethowto.com/ports-and-nat/upnp-automatic-port-forward/) on your router or add a NAT (for IPv4 but not IPv6) and firewall rule to allow TCP port 8444 access to your peer. These methods tend to be router make/model specific.
 
@@ -12,12 +12,6 @@ sudo apt-get update
 sudo apt-get install build-essential cmake python3-dev python3-venv --no-install-recommends
 
 sh install.sh
-
-# Install MongoDB Community Edition
-# Instructions - https://docs.mongodb.com/manual/administration/install-on-linux/
-
-# Run mongo database
-mongod --fork --dbpath ./db/ --logpath mongod.log
 
 . .venv/bin/activate
 ```
@@ -57,30 +51,20 @@ cd chia-blockchain
 
 sh install.sh
 
-# Install MongoDB Community Edition
-# Instructions - https://docs.mongodb.com/manual/administration/install-on-linux/
-
-# Run mongo database
-mongod --fork --dbpath ./db/ --logpath mongod.log
-
 . .venv/bin/activate
 ```
 
 ### Install on MacOS
 Make sure [brew](https://brew.sh/) is available before starting the setup.
 ```bash
-brew tap mongodb/brew
 brew upgrade python
-brew install cmake boost gmp mpir mpfr mongodb-community@4.2
+brew install cmake boost gmp mpir mpfr
 
 git clone https://github.com/Chia-Network/chia-blockchain.git && cd chia-blockchain
 
 git clone https://github.com/wbhart/flint2
 
 sh install.sh
-
-# Run mongo database
-mongod --fork --dbpath ./db/ --logpath mongod.log
 
 . .venv/bin/activate
 ```
@@ -91,7 +75,7 @@ Change install.sh -- each line that starts with `pip install` becomes `python -m
 
 ```bash
 sudo apt-get -y update
-sudo apt-get install -y build-essential cmake python3-dev python3-venv mongodb software-properties-common --no-install-recommends
+sudo apt-get install -y build-essential cmake python3-dev python3-venv software-properties-common --no-install-recommends
 sudo sh install.sh
 ```
 
@@ -103,7 +87,7 @@ Each line that starts with `pip ...` becomes `python -m pip ...`
 In `./lib/chiavdf/fast_vdf/install_child.sh`, remove the line `sudo apt install libboost-all-dev`
 
 ```bash
-sudo apt-get -y update && sudo apt-get install -y build-essential cmake python3-dev python3-venv mongodb software-properties-common --no-install-recommends
+sudo apt-get -y update && sudo apt-get install -y build-essential cmake python3-dev python3-venv software-properties-common --no-install-recommends
 
 # Install python3.7 with ppa
 sudo add-apt-repository -y ppa:deadsnakes/ppa
@@ -176,9 +160,7 @@ sh ./scripts/run_all_simulation.sh
 ### Run tests and linting
 The first time the tests are run, BlockTools will create and persist many plots. These are used for creating
 proofs of space during testing. The next time tests are run, this won't be necessary.
-Make sure to run mongo before running the tests.
 ```bash
-mongod --dbpath ./db/ &
 black src tests && flake8 src && mypy src tests
 py.test tests -s -v
 ```

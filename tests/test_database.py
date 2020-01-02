@@ -44,11 +44,14 @@ class TestDatabase:
         genesis = FullBlock.from_bytes(constants["GENESIS_BLOCK"])
 
         assert await db.get_block(blocks[0].header_hash) is None
+        assert len(await db.get_small_header_blocks()) == 0
 
         # Save/get block
         for block in blocks:
             await db.add_block(block)
             assert block == await db.get_block(block.header_hash)
+
+        assert len(await db.get_small_header_blocks()) == 10
 
         # Save/get sync
         for sync_mode in (False, True):
