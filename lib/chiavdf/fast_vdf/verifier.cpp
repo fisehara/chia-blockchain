@@ -1,3 +1,4 @@
+#include <flint/fmpz.h>
 #include "include.h"
 #include "integer_common.h"
 #include "vdf_new.h"
@@ -321,7 +322,7 @@ int main()
         print("Test #1 failed.\n");
     
     bool result2 = CheckProofOfTimeType(test2);
-    if (result1)
+    if (result2)
         print("Test #2 passed.\n");
     else
         print("Test #2 failed.\n");

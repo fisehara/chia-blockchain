@@ -1,5 +1,8 @@
 #include "include.h"
 
+#include <flint/fmpz.h>
+#include <x86intrin.h>
+
 #include "parameters.h"
 
 #include "bit_manipulation.h"

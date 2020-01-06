@@ -1,3 +1,6 @@
+#include <flint/fmpz.h>
+#include <x86intrin.h>
+
 #include "include.h"
 
 #include "parameters.h"
