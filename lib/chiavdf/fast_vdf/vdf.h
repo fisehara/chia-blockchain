@@ -40,6 +40,7 @@
 
 #include "ClassGroup.h"
 #include "Reducer.h"
+#include "proof_common.h"
 
 #include <boost/asio.hpp>
 
@@ -323,90 +324,6 @@ void repeated_square(form f, const integer& D, const integer& L, WesolowskiCallb
     #endif
 }
 
-std::vector<unsigned char> ConvertIntegerToBytes(integer x, uint64_t num_bytes) {
-    std::vector<unsigned char> bytes;
-    bool negative = false;
-    if (x < 0) {
-        x = abs(x);
-        x = x - integer(1);
-        negative = true;
-    }
-    for (int iter = 0; iter < num_bytes; iter++) {
-        auto byte = (x % integer(256)).to_vector();
-        if (negative)
-            byte[0] ^= 255;
-        bytes.push_back(byte[0]);
-        x = x / integer(256);
-    }
-    std::reverse(bytes.begin(), bytes.end());
-    return bytes;
-}
-
-integer HashPrime(std::vector<unsigned char> s) {
-    std::string prime = "prime";
-    uint32_t j = 0;
-    while (true) {
-        std::vector<unsigned char> input(prime.begin(), prime.end());
-        std::vector<unsigned char> j_to_bytes = ConvertIntegerToBytes(integer(j), 8);
-        input.insert(input.end(), j_to_bytes.begin(), j_to_bytes.end());
-        input.insert(input.end(), s.begin(), s.end());
-        std::vector<unsigned char> hash(picosha2::k_digest_size);
-        picosha2::hash256(input.begin(), input.end(), hash.begin(), hash.end());
-
-        integer prime_integer;
-        for (int i = 0; i < 16; i++) {
-            prime_integer *= integer(256);
-            prime_integer += integer(hash[i]);
-        }
-        if (prime_integer.prime()) {
-            return prime_integer;
-        }
-        j++;
-    }
-}
-
-std::vector<unsigned char> SerializeForm(WesolowskiCallback &weso, form &y, int int_size) {
-    //weso.reduce(y);
-    y.reduce();
-    std::vector<unsigned char> res = ConvertIntegerToBytes(y.a, int_size);
-    std::vector<unsigned char> b_res = ConvertIntegerToBytes(y.b, int_size);
-    res.insert(res.end(), b_res.begin(), b_res.end());
-    return res;
-}
-
-integer GetB(WesolowskiCallback &weso, integer& D, form &x, form& y) {
-    int int_size = (D.num_bits() + 16) >> 4;
-    std::vector<unsigned char> serialization = SerializeForm(weso, x, int_size);
-    std::vector<unsigned char> serialization_y = SerializeForm(weso, y, int_size);
-    serialization.insert(serialization.end(), serialization_y.begin(), serialization_y.end());
-    return HashPrime(serialization);
-}
-
-integer FastPow(uint64_t a, uint64_t b, integer& c) {
-    if (b == 0)
-        return integer(1);
-
-    integer res = FastPow(a, b / 2, c);
-    res = res * res;
-    res = res % c;
-    if (b % 2) {
-        res = res * integer(a);
-        res = res % c;
-    }
-    return res;
-}
-
-form FastPowForm(form &x, const integer& D, uint64_t num_iterations) {
-    if (num_iterations == 0)
-        return form::identity(D);
-
-    form res = FastPowForm(x, D, num_iterations / 2);
-    res = res * res;
-    if (num_iterations % 2)
-	res = res * x;
-    return res;
-}
-
 uint64_t GetBlock(uint64_t i, uint64_t k, uint64_t T, integer& B) {
     integer res(1 << k);
     res *= FastPow(2, T - k * (i + 1), B);
@@ -458,7 +375,7 @@ form GenerateProof(form &y, form &x_init, integer &D, uint64_t done_iterations, 
     reducer=new Reducer(*t);
 #endif
 
-    integer B = GetB(weso, D, x_init, y);
+    integer B = GetB(D, x_init, y);
     integer L=root(-D, 4);
 
     uint64_t k1 = k / 2;
@@ -467,7 +384,7 @@ form GenerateProof(form &y, form &x_init, integer &D, uint64_t done_iterations, 
     form x = form::identity(D);
 
     for (int64_t j = l - 1; j >= 0; j--) {
-        x=FastPowForm(x, D, (1 << k));
+        x=FastPowForm(x, D, integer(1 << k));
 
         std::vector<form> ys((1 << k));
         for (uint64_t i = 0; i < (1 << k); i++)
@@ -518,7 +435,7 @@ form GenerateProof(form &y, form &x_init, integer &D, uint64_t done_iterations, 
                 z.reduce();
 #endif
             }
-            z = FastPowForm(z, D, b1 * (1 << k0));
+            z = FastPowForm(z, D, integer(b1 * (1 << k0)));
             x = x * z;
         }
 
@@ -541,7 +458,7 @@ form GenerateProof(form &y, form &x_init, integer &D, uint64_t done_iterations, 
                 z.reduce();
 #endif
             }
-            z = FastPowForm(z, D, b0);
+            z = FastPowForm(z, D, integer(b0));
             x = x * z;
         }
 
@@ -610,10 +527,10 @@ Proof CreateProofOfTimeWesolowski(integer& D, form x, int64_t num_iterations, ui
 
     int int_size = (D.num_bits() + 16) >> 4;
 
-    std::vector<unsigned char> y_bytes = SerializeForm(weso, y, 129);
-    std::vector<unsigned char> proof_bytes = SerializeForm(weso, proof, int_size);
-    Proof final_proof=Proof(y_bytes, proof_bytes);
+    std::vector<unsigned char> y_bytes = SerializeForm(y, 129);
 
+    std::vector<unsigned char> proof_bytes = SerializeForm(proof, int_size);
+    Proof final_proof=Proof(y_bytes, proof_bytes);
     return final_proof;
 }
 
@@ -672,10 +589,10 @@ Proof CreateProofOfTimeNWesolowski(integer& D, form x, int64_t num_iterations,
     std::vector<unsigned char> tmp = ConvertIntegerToBytes(integer(iterations1), 8);
     proof_bytes.insert(proof_bytes.end(), tmp.begin(), tmp.end());
     tmp.clear();
-    tmp = SerializeForm(weso, y1, int_size);
+    tmp = SerializeForm(y1, int_size);
     proof_bytes.insert(proof_bytes.end(), tmp.begin(), tmp.end());
     tmp.clear();
-    tmp = SerializeForm(weso, proof, int_size);
+    tmp = SerializeForm(proof, int_size);
     proof_bytes.insert(proof_bytes.end(), tmp.begin(), tmp.end());
     final_proof.proof = proof_bytes;
     return final_proof;
