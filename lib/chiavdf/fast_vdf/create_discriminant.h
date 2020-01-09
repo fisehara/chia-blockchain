@@ -44,7 +44,6 @@ std::vector<pair<int, int>> BuildSieveInfo(std::vector<int>& primes) {
         int a = m % p;
         int b = p - 2;
         int c = 1;
-        // Hopefully a bit faster than the recursive variant.
         while (b) {
             if (b % 2) {
                 c = (long long) c * a % p;

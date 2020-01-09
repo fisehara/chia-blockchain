@@ -1,231 +1,13 @@
-#include "include.h"
-#include "integer_common.h"
-#include "vdf_new.h"
-#include "picosha2.h"
-#include "nucomp.h"
-#include "proof_common.h"
-#include "create_discriminant.h"
-
-form FastPowFormNucomp(form &x, integer &D, integer num_iterations, integer &L)
-{
-    if (num_iterations == integer(0))
-        return form::identity(D);
-
-    integer new_num_iterations = num_iterations;
-    new_num_iterations >>= 1;
-    form res = FastPowFormNucomp(x, D, new_num_iterations, L);
-    nucomp_form(res, res, res, D, L);
-    if (num_iterations % integer(2) == integer(1))
-        nucomp_form(res, res, x, D, L);
-    res.reduce();
-    return res;
-}
-
-integer ConvertBytesToInt(uint8_t *bytes, int start_index, int end_index)
-{
-    integer res(0);
-    bool negative = false;
-    if (bytes[start_index] & (1 << 7))
-        negative = true;
-    for (int i = start_index; i < end_index; i++)
-    {
-        res = res * integer(256);
-        if (!negative)
-            res = res + integer(bytes[i]);
-        else
-            res = res + integer(bytes[i] ^ 255);
-    }
-    if (negative)
-    {
-        res = res + integer(1);
-        res = res * integer(-1);
-    }
-    return res;
-}
-
-form DeserializeForm(integer &d, uint8_t *bytes, int int_size)
-{
-    integer a = ConvertBytesToInt(bytes, 0, int_size);
-    integer b = ConvertBytesToInt(bytes, int_size, 2 * int_size);    
-    form f = form::from_abd(a, b, d);
-    return f;
-}
-
-std::vector<form> DeserializeProof(uint8_t *proof_bytes, int proof_len, integer &D)
-{
-    int int_size = (D.num_bits() + 16) >> 4;
-    std::vector<form> proof;
-    for (int i = 0; i < proof_len; i += 2 * int_size)
-    {
-        std::vector<uint8_t> tmp_bytes;
-        for (int j = 0; j < 2 * int_size; j++)
-            tmp_bytes.push_back(proof_bytes[i + j]);
-        proof.emplace_back(DeserializeForm(D, tmp_bytes.data(), int_size));
-    }
-    return proof;
-}
-
-void VerifyWesolowskiProof(integer &D, form x, form y, form proof, int iters, bool &is_valid)
-{
-    int int_size = (D.num_bits() + 16) >> 4;
-    integer L = root(-D, 4);
-    integer B = GetB(D, x, y);
-    integer r = FastPow(2, iters, B);
-    form f1 = FastPowFormNucomp(proof, D, B, L);
-    form f2 = FastPowFormNucomp(x, D, r, L);
-    if (f1 * f2 == y)
-    {
-        is_valid = true;
-    }
-    else
-    {
-        is_valid = false;
-    }
-}
-
-bool CheckProofOfTimeNWesolowskiInner(integer &D, form x, uint8_t *proof_blob,
-                                      int blob_len, int iters, int int_size,
-                                      std::vector<int> iter_list, int recursion)
-{
-    uint8_t result_bytes[10000];
-    uint8_t proof_bytes[10000];
-    memcpy(result_bytes, proof_blob, 2 * int_size);
-    memcpy(proof_bytes, proof_blob + 2 * int_size, blob_len - 2 * int_size);
-    form y = DeserializeForm(D, result_bytes, int_size);
-    std::vector<form> proof = DeserializeProof(proof_bytes, blob_len - 2 * int_size, D);
-    if (recursion * 2 + 1 != proof.size())
-        return false;
-    if (proof.size() == 1)
-    {
-        bool is_valid;
-        VerifyWesolowskiProof(D, x, y, proof[0], iters, is_valid);
-        return is_valid;
-    }
-    else
-    {
-        if (!(proof.size() % 2 == 1 && proof.size() > 2))
-            return false;
-        int iters1 = iter_list[iter_list.size() - 1];
-        int iters2 = iters - iters1;
-        bool ver_outer;
-        std::thread t(VerifyWesolowskiProof, std::ref(D), x, proof[proof.size() - 2], proof[proof.size() - 1], iters1, std::ref(ver_outer));
-        uint8_t new_proof_bytes[10000];
-        for (int i = 0; i < blob_len - 4 * int_size; i++)
-            new_proof_bytes[i] = proof_blob[i];
-        iter_list.pop_back();
-        bool ver_inner = CheckProofOfTimeNWesolowskiInner(D, proof[proof.size() - 2], new_proof_bytes, blob_len - 4 * int_size, iters2, int_size, iter_list, recursion - 1);
-        t.join();
-        if (ver_inner && ver_outer)
-            return true;
-        return false;
-    }
-}
-
-bool CheckProofOfTimeNWesolowski(integer &D, form x, uint8_t *proof_blob, int proof_blob_len, int iters, int recursion)
-{
-    int int_size = (D.num_bits() + 16) >> 4;
-    uint8_t new_proof_blob[10000];
-    int new_cnt = 4 * int_size;
-    memcpy(new_proof_blob, proof_blob, new_cnt);
-    std::vector<int> iter_list;
-    for (int i = new_cnt; i < proof_blob_len; i += 4 * int_size + 8)
-    {
-        auto iter_vector = ConvertBytesToInt(proof_blob, i, i + 8).to_vector();
-        iter_list.push_back(iter_vector[0]);
-        if (iter_vector[0] < 0)
-            return false;
-        memcpy(new_proof_blob + new_cnt, proof_blob + i + 8, 4 * int_size);
-        new_cnt += 4 * int_size;
-    }
-    bool is_valid = CheckProofOfTimeNWesolowskiInner(D, x, new_proof_blob, new_cnt, iters, int_size, iter_list, recursion);
-    return is_valid;
-}
-
-std::vector<uint8_t> HexToBytes(char *hex_proof)
-{
-    int len = strlen(hex_proof);
-    assert(len % 2 == 0);
-    std::vector<uint8_t> result;
-    for (int i = 0; i < len; i += 2)
-    {
-        int hex1 = hex_proof[i] >= 'a' ? (hex_proof[i] - 'a' + 10) : (hex_proof[i] - '0');
-        int hex2 = hex_proof[i + 1] >= 'a' ? (hex_proof[i + 1] - 'a' + 10) : (hex_proof[i + 1] - '0');
-        result.push_back(hex1 * 16 + hex2);
-    }
-    return result;
-}
-
-// Intended to match with ProofOfTime type from Chia Blockchain.
-struct ProofOfTimeType
-{
-    integer discriminant;
-    integer a;
-    integer b;
-    uint64_t iterations_needed;
-    std::vector<uint8_t> witness;
-    uint8_t witness_type;
-
-    ProofOfTimeType(const integer &discriminant, const integer &a, const integer &b, uint64_t iterations_needed,
-                    const std::vector<uint8_t> &witness, uint8_t witness_type)
-    {
-        this->discriminant = discriminant;
-        this->a = a;
-        this->b = b;
-        this->iterations_needed = iterations_needed;
-        this->witness = witness;
-        this->witness_type = witness_type;
-    }
-};
-
-// Converts from ProofOfTimeType to CheckProofOfTimeNWesolowski-like arguments and calls the check.
-bool CheckProofOfTimeType(ProofOfTimeType &proof)
-{
-    auto t1 = std::chrono::high_resolution_clock::now();
-    bool result;
-
-    try
-    {
-        form x = form::generator(proof.discriminant);
-        int int_size = (proof.discriminant.num_bits() + 16) >> 4;
-        form y = form::from_abd(proof.a, proof.b, proof.discriminant);
-        std::vector<uint8_t> proof_blob = SerializeForm(y, int_size);
-        proof_blob.insert(proof_blob.end(), proof.witness.begin(), proof.witness.end());
-
-        result = CheckProofOfTimeNWesolowski(proof.discriminant, x, proof_blob.data(), proof_blob.size(), proof.iterations_needed, proof.witness_type);
-    }
-    catch (std::exception &e)
-    {
-        result = false;
-    }
-    auto t2 = std::chrono::high_resolution_clock::now();
-    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count();
-    print("Verification time = " + to_string(duration) + "ms.");
-
-    return result;
-}
+#include "verifier.h"
 
 int main()
 {
-    auto t1_start = std::chrono::high_resolution_clock::now();
     char challenge_hash1_hex[] = "a4bb1461ade74ac602e9ae511af68bb254dfe65d61b7faf9fab82d0b4364a30b";
     auto challenge_hash1 = HexToBytes(challenge_hash1_hex);
-    integer discriminant1 = CreateDiscriminant(challenge_hash1);
-    auto t1_end = std::chrono::high_resolution_clock::now();
-    auto duration1 = std::chrono::duration_cast<std::chrono::milliseconds>(t1_end - t1_start).count();
-    print("Create discriminant time = " + to_string(duration1) + "ms.");
-    print("Discriminant = ");
-    print(discriminant1.impl);
 
-    auto t2_start = std::chrono::high_resolution_clock::now();
     char challenge_hash2_hex[] = "1633f29c0ca0597258507bc7d323a8bd485d5f059da56340a2c616081fb05b7f";
     auto challenge_hash2 = HexToBytes(challenge_hash2_hex);
-    integer discriminant2 = CreateDiscriminant(challenge_hash2);
-    auto t2_end = std::chrono::high_resolution_clock::now();
-    auto duration2 = std::chrono::duration_cast<std::chrono::milliseconds>(t2_end - t2_start).count();
-    print("Create discriminant time = " + to_string(duration2) + "ms.");
-    print("Discriminant = ");
-    print(discriminant2.impl);
-
+    
     // Test 1: block 11278 challenge_hash = a4bb1461ade74ac602e9ae511af68bb254dfe65d61b7faf9fab82d0b4364a30b
     std::vector<uint8_t> witness1(
         {0, 66, 83, 222, 194, 35, 255, 62, 48, 148, 1, 100, 235, 199, 156, 156,
@@ -319,7 +101,7 @@ int main()
 
     ProofOfTimeType test1(
         ///*discriminant=*/integer("-146034004988995324450899632927708569076216311660629486868969524905823791101129965616306403106228613155248048777324859112377567377611365244344698891812959891333662090324001598409511351166803295083408004513522410571274209999557757565527745109011222985028131502058812870261063827579868894671524386074886059562807"),
-        /*discriminant=*/discriminant1,
+        /*discriminant=*/challenge_hash1,
         /*a=*/integer("2120439809548002603699476515242856052401016261690016272875375071691961393091525387070479560771020084644071207726495978942882631782725802522199105524842492"),
         /*b=*/integer("-1447745607279856836390430406078195096118390105960950865534703611396791372115445411292284152604500691817421284831093402993306669441174757567119801738100995"),
         /*iterations_needed=*/5728275,
@@ -329,7 +111,7 @@ int main()
 
     ProofOfTimeType test2(
         ///*discriminant=*/integer("-141140317794792668862943332656856519378482291428727287413318722089216448567155737094768903643716404517549715385664163360316296284155310058980984373770517398492951860161717960368874227473669336541818575166839209228684755811071416376384551902149780184532086881683576071479646499601330824259260645952517205526679"),
-        /*discriminant=*/discriminant2,
+        /*discriminant=*/challenge_hash2,
         /*a=*/integer("5995822174752598681464821178400044775263491831121191947378966754053931067055682917999005598919776725834807951347990196033583183503215350056672265407022667"),
         /*b=*/integer("1857599280246213629471341186238029632043329881356694152473161696212923061132534499554981549765761965469743565522045552935302619566637106283783998935421377"),
         /*iterations_needed=*/15363962,
@@ -353,7 +135,7 @@ int main()
 
     witness1[witness1.size() - 1]++;
     ProofOfTimeType test3(
-        /*discriminant=*/integer("-146034004988995324450899632927708569076216311660629486868969524905823791101129965616306403106228613155248048777324859112377567377611365244344698891812959891333662090324001598409511351166803295083408004513522410571274209999557757565527745109011222985028131502058812870261063827579868894671524386074886059562807"),
+        /*discriminant=*/challenge_hash1,
         /*a=*/integer("2120439809548002603699476515242856052401016261690016272875375071691961393091525387070479560771020084644071207726495978942882631782725802522199105524842492"),
         /*b=*/integer("-1447745607279856836390430406078195096118390105960950865534703611396791372115445411292284152604500691817421284831093402993306669441174757567119801738100995"),
         /*iterations_needed=*/5728275,
@@ -369,7 +151,7 @@ int main()
     // Test 4, modified iterations needed.
 
     ProofOfTimeType test4(
-        /*discriminant=*/integer("-141140317794792668862943332656856519378482291428727287413318722089216448567155737094768903643716404517549715385664163360316296284155310058980984373770517398492951860161717960368874227473669336541818575166839209228684755811071416376384551902149780184532086881683576071479646499601330824259260645952517205526679"),
+        /*discriminant=*/challenge_hash2,
         /*a=*/integer("5995822174752598681464821178400044775263491831121191947378966754053931067055682917999005598919776725834807951347990196033583183503215350056672265407022667"),
         /*b=*/integer("1857599280246213629471341186238029632043329881356694152473161696212923061132534499554981549765761965469743565522045552935302619566637106283783998935421377"),
         /*iterations_needed=*/15363963,
