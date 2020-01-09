@@ -1,29 +1,30 @@
 #include "integer_common.h"
+#include "xgcd_partial.c"
 
 //a and b are nonnegative
 void xgcd_partial(integer& u, integer& v, integer& a, integer& b, const integer& L) {
-    fmpz_t f_u; fmpz_init(f_u);
-    fmpz_t f_v; fmpz_init(f_v);
-    fmpz_t f_a; fmpz_init(f_a);
-    fmpz_t f_b; fmpz_init(f_b);
-    fmpz_t f_L; fmpz_init(f_L);
+    mpz_t f_u; mpz_init(f_u);
+    mpz_t f_v; mpz_init(f_v);
+    mpz_t f_a; mpz_init(f_a);
+    mpz_t f_b; mpz_init(f_b);
+    mpz_t f_L; mpz_init(f_L);
 
-    fmpz_set_mpz(f_a, a.impl);
-    fmpz_set_mpz(f_b, b.impl);
-    fmpz_set_mpz(f_L, L.impl);
+    mpz_set(f_a, a.impl);
+    mpz_set(f_b, b.impl);
+    mpz_set(f_L, L.impl);
 
-    fmpz_xgcd_partial(f_u, f_v, f_a, f_b, f_L);
+    mpz_xgcd_partial(f_u, f_v, f_a, f_b, f_L);
 
-    fmpz_get_mpz(u.impl, f_u);
-    fmpz_get_mpz(v.impl, f_v);
-    fmpz_get_mpz(a.impl, f_a);
-    fmpz_get_mpz(b.impl, f_b);
+    mpz_set(u.impl, f_u);
+    mpz_set(v.impl, f_v);
+    mpz_set(a.impl, f_a);
+    mpz_set(b.impl, f_b);
 
-    fmpz_clear(f_u);
-    fmpz_clear(f_v);
-    fmpz_clear(f_a);
-    fmpz_clear(f_b);
-    fmpz_clear(f_L);
+    mpz_clear(f_u);
+    mpz_clear(f_v);
+    mpz_clear(f_a);
+    mpz_clear(f_b);
+    mpz_clear(f_L);
 }
 
 void inject_error(mpz_struct* i) {

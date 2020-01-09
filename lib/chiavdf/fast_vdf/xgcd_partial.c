@@ -9,36 +9,36 @@
     (at your option) any later version.  See <http://www.gnu.org/licenses/>.
 */
 
+#ifndef _XGCD_PARTIAL
+#define _XGCD_PARTIAL
+
 #include <gmp.h>
-#include "flint.h"
-#include "ulong_extras.h"
-#include "fmpz.h"
 
-void fmpz_xgcd_partial(fmpz_t co2, fmpz_t co1, 
-                                    fmpz_t r2, fmpz_t r1, const fmpz_t L)
+void mpz_xgcd_partial(mpz_t co2, mpz_t co1,
+                                    mpz_t r2, mpz_t r1, const mpz_t L)
 {
-   fmpz_t q, r;
-   slong aa2, aa1, bb2, bb1, rr1, rr2, qq, bb, t1, t2, t3, i;
-   slong bits, bits1, bits2;
+   mpz_t q, r;
+   mp_limb_signed_t aa2, aa1, bb2, bb1, rr1, rr2, qq, bb, t1, t2, t3, i;
+   mp_limb_signed_t bits, bits1, bits2;
 
-   fmpz_init(q); fmpz_init(r);
+   mpz_init(q); mpz_init(r);
    
-   fmpz_zero(co2);
-   fmpz_set_si(co1, -1);
+   mpz_set_ui(co2, 0);
+   mpz_set_si(co1, -1);
   
-   while (!fmpz_is_zero(r1) && fmpz_cmp(r1, L) > 0)
+   while (mpz_cmp_ui(r1, 0) && mpz_cmp(r1, L) > 0)
    {
-      bits2 = fmpz_bits(r2);
-      bits1 = fmpz_bits(r1);
-      bits = FLINT_MAX(bits2, bits1) - FLINT_BITS + 1;
+      bits2 = mpz_sizeinbase(r2, 2);
+      bits1 = mpz_sizeinbase(r1, 2);
+      bits = __GMP_MAX(bits2, bits1) - GMP_LIMB_BITS + 1;
       if (bits < 0) bits = 0;
       
-      fmpz_tdiv_q_2exp(r, r2, bits);
-      rr2 = fmpz_get_ui(r);
-      fmpz_tdiv_q_2exp(r, r1, bits);
-      rr1 = fmpz_get_ui(r);
-      fmpz_tdiv_q_2exp(r, L, bits);
-      bb = fmpz_get_ui(r);
+      mpz_tdiv_q_2exp(r, r2, bits);
+      rr2 = mpz_get_ui(r);
+      mpz_tdiv_q_2exp(r, r1, bits);
+      rr1 = mpz_get_ui(r);
+      mpz_tdiv_q_2exp(r, L, bits);
+      bb = mpz_get_ui(r);
 
       aa2 = 0; aa1 = 1;
       bb2 = 1; bb1 = 0;
@@ -66,47 +66,48 @@ void fmpz_xgcd_partial(fmpz_t co2, fmpz_t co1,
 
       if (i == 0)
       {
-         fmpz_fdiv_qr(q, r2, r2, r1);
-         fmpz_swap(r2, r1);
+         mpz_fdiv_qr(q, r2, r2, r1);
+         mpz_swap(r2, r1);
 
-         fmpz_submul(co2, co1, q);
-         fmpz_swap(co2, co1);
+         mpz_submul(co2, co1, q);
+         mpz_swap(co2, co1);
       } else
       {
-         fmpz_mul_si(r, r2, bb2);
+         mpz_mul_si(r, r2, bb2);
          if (aa2 >= 0)
-            fmpz_addmul_ui(r, r1, aa2);
+            mpz_addmul_ui(r, r1, aa2);
          else
-            fmpz_submul_ui(r, r1, -aa2);
-         fmpz_mul_si(r1, r1, aa1);
+            mpz_submul_ui(r, r1, -aa2);
+         mpz_mul_si(r1, r1, aa1);
          if (bb1 >= 0)
-            fmpz_addmul_ui(r1, r2, bb1);
+            mpz_addmul_ui(r1, r2, bb1);
          else
-            fmpz_submul_ui(r1, r2, -bb1);
-         fmpz_set(r2, r);
+            mpz_submul_ui(r1, r2, -bb1);
+         mpz_set(r2, r);
 
-         fmpz_mul_si(r, co2, bb2);
+         mpz_mul_si(r, co2, bb2);
          if (aa2 >= 0)
-            fmpz_addmul_ui(r, co1, aa2);
+            mpz_addmul_ui(r, co1, aa2);
          else
-            fmpz_submul_ui(r, co1, -aa2);
-         fmpz_mul_si(co1, co1, aa1);
+            mpz_submul_ui(r, co1, -aa2);
+         mpz_mul_si(co1, co1, aa1);
          if (bb1 >= 0)
-            fmpz_addmul_ui(co1, co2, bb1);
+            mpz_addmul_ui(co1, co2, bb1);
          else
-            fmpz_submul_ui(co1, co2, -bb1);
-         fmpz_set(co2, r);
+            mpz_submul_ui(co1, co2, -bb1);
+         mpz_set(co2, r);
 
-         if (fmpz_sgn(r1) < 0) { fmpz_neg(co1, co1); fmpz_neg(r1, r1); }
-         if (fmpz_sgn(r2) < 0) { fmpz_neg(co2, co2); fmpz_neg(r2, r2); }
+         if (mpz_sgn(r1) < 0) { mpz_neg(co1, co1); mpz_neg(r1, r1); }
+         if (mpz_sgn(r2) < 0) { mpz_neg(co2, co2); mpz_neg(r2, r2); }
       }
    }
 
-   if (fmpz_sgn(r2) < 0)
+   if (mpz_sgn(r2) < 0)
    { 
-      fmpz_neg(co2, co2); fmpz_neg(co1, co1);
-      fmpz_neg(r2, r2);
+      mpz_neg(co2, co2); mpz_neg(co1, co1);
+      mpz_neg(r2, r2);
    }
 
-   fmpz_clear(q); fmpz_clear(r);
+   mpz_clear(q); mpz_clear(r);
 }
+#endif /* _XGCD_PARTIAL */

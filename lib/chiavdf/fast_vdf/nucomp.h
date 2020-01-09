@@ -14,189 +14,191 @@ See the License for the specific language governing permissions and
 limitations under the License.
 **/
 
+#include "xgcd_partial.c"
+
 #define LOG2(X) (63 - __builtin_clzll((X)))
 //using namespace std;
 
 typedef struct qfb
 {
-    fmpz_t a;
-    fmpz_t b;
-    fmpz_t c;
+    mpz_t a;
+    mpz_t b;
+    mpz_t c;
 } qfb;
 
 typedef qfb qfb_t[1];
 
 // From Antic using Flint (works!)
-void qfb_nucomp(qfb_t r, const qfb_t f, const qfb_t g, fmpz_t& D, fmpz_t& L)
+void qfb_nucomp(qfb_t r, const qfb_t f, const qfb_t g, mpz_t& D, mpz_t& L)
 {
-   fmpz_t a1, a2, c2, ca, cb, cc, k, s, sp, ss, m, t, u2, v1, v2;
+   mpz_t a1, a2, c2, ca, cb, cc, k, s, sp, ss, m, t, u2, v1, v2;
 
-   if (fmpz_cmp(f->a, g->a) > 0)
+   if (mpz_cmp(f->a, g->a) > 0)
    {
       qfb_nucomp(r, g, f, D, L);
       return;
    }
 
-   fmpz_init(a1); fmpz_init(a2); fmpz_init(c2);
-   fmpz_init(ca); fmpz_init(cb); fmpz_init(cc);
-   fmpz_init(k); fmpz_init(m);
-   fmpz_init(s); fmpz_init(sp); fmpz_init(ss);
-   fmpz_init(t); fmpz_init(u2); fmpz_init(v1); fmpz_init(v2);
+   mpz_init(a1); mpz_init(a2); mpz_init(c2);
+   mpz_init(ca); mpz_init(cb); mpz_init(cc);
+   mpz_init(k); mpz_init(m);
+   mpz_init(s); mpz_init(sp); mpz_init(ss);
+   mpz_init(t); mpz_init(u2); mpz_init(v1); mpz_init(v2);
 
    /* nucomp calculation */
 
-   fmpz_set(a1, f->a);
-   fmpz_set(a2, g->a);
-   fmpz_set(c2, g->c);
+   mpz_set(a1, f->a);
+   mpz_set(a2, g->a);
+   mpz_set(c2, g->c);
 
-   fmpz_add(ss, f->b, g->b);
-   fmpz_fdiv_q_2exp(ss, ss, 1);
+   mpz_add(ss, f->b, g->b);
+   mpz_fdiv_q_2exp(ss, ss, 1);
 
-   fmpz_sub(m, f->b, g->b);
-   fmpz_fdiv_q_2exp(m, m, 1);
+   mpz_sub(m, f->b, g->b);
+   mpz_fdiv_q_2exp(m, m, 1);
 
-   fmpz_fdiv_r(t, a2, a1);
-   if (fmpz_is_zero(t))
+   mpz_fdiv_r(t, a2, a1);
+   if (!mpz_cmp_ui(t, 0))
    {
-      fmpz_set_ui(v1, 0);
-      fmpz_set(sp, a1);
+      mpz_set_ui(v1, 0);
+      mpz_set(sp, a1);
    } else
-      fmpz_gcdinv(sp, v1, t, a1);
+      mpz_gcdext(sp, v1, NULL, t, a1);
 
-   fmpz_mul(k, m, v1);
-   fmpz_fdiv_r(k, k, a1);
+   mpz_mul(k, m, v1);
+   mpz_fdiv_r(k, k, a1);
  
-   if (!fmpz_is_one(sp))
+   if (mpz_cmp_ui(sp, 1))
    {
-      fmpz_xgcd(s, v2, u2, ss, sp);
+      mpz_gcdext(s, v2, u2, ss, sp);
  
-      fmpz_mul(k, k, u2);
-      fmpz_mul(t, v2, c2);
-      fmpz_sub(k, k, t);
+      mpz_mul(k, k, u2);
+      mpz_mul(t, v2, c2);
+      mpz_sub(k, k, t);
 
-      if (!fmpz_is_one(s))
+      if (mpz_cmp_ui(s, 1))
       {
-         fmpz_fdiv_q(a1, a1, s);
-         fmpz_fdiv_q(a2, a2, s);
-         fmpz_mul(c2, c2, s);
+         mpz_fdiv_q(a1, a1, s);
+         mpz_fdiv_q(a2, a2, s);
+         mpz_mul(c2, c2, s);
       }
 
-      fmpz_fdiv_r(k, k, a1);
+      mpz_fdiv_r(k, k, a1);
    }
 
-   if (fmpz_cmp(a1, L) < 0)
+   if (mpz_cmp(a1, L) < 0)
    {
-      fmpz_mul(t, a2, k);
+      mpz_mul(t, a2, k);
 
-      fmpz_mul(ca, a2, a1);
+      mpz_mul(ca, a2, a1);
 
-      fmpz_mul_2exp(cb, t, 1);
-      fmpz_add(cb, cb, g->b);
+      mpz_mul_2exp(cb, t, 1);
+      mpz_add(cb, cb, g->b);
 
-      fmpz_add(cc, g->b, t);
-      fmpz_mul(cc, cc, k);
-      fmpz_add(cc, cc, c2);
+      mpz_add(cc, g->b, t);
+      mpz_mul(cc, cc, k);
+      mpz_add(cc, cc, c2);
 
-      fmpz_fdiv_q(cc, cc, a1);
+      mpz_fdiv_q(cc, cc, a1);
    } else
    {
-      fmpz_t m1, m2, r1, r2, co1, co2, temp;
+      mpz_t m1, m2, r1, r2, co1, co2, temp;
 
-      fmpz_init(m1); fmpz_init(m2); fmpz_init(r1); fmpz_init(r2);
-      fmpz_init(co1); fmpz_init(co2); fmpz_init(temp);
+      mpz_init(m1); mpz_init(m2); mpz_init(r1); mpz_init(r2);
+      mpz_init(co1); mpz_init(co2); mpz_init(temp);
 
-      fmpz_set(r2, a1);
-      fmpz_set(r1, k);
+      mpz_set(r2, a1);
+      mpz_set(r1, k);
 
-      fmpz_xgcd_partial(co2, co1, r2, r1, L);
+      mpz_xgcd_partial(co2, co1, r2, r1, L);
 
-      fmpz_mul(t, a2, r1);
-      fmpz_mul(m1, m, co1);
-      fmpz_add(m1, m1, t);
-      fmpz_tdiv_q(m1, m1, a1);
+      mpz_mul(t, a2, r1);
+      mpz_mul(m1, m, co1);
+      mpz_add(m1, m1, t);
+      mpz_tdiv_q(m1, m1, a1);
 
-      fmpz_mul(m2, ss, r1);
-      fmpz_mul(temp, c2, co1);
-      fmpz_sub(m2, m2, temp);
-      fmpz_tdiv_q(m2, m2, a1);
+      mpz_mul(m2, ss, r1);
+      mpz_mul(temp, c2, co1);
+      mpz_sub(m2, m2, temp);
+      mpz_tdiv_q(m2, m2, a1);
 
-      fmpz_mul(ca, r1, m1);
-      fmpz_mul(temp, co1, m2);
-      if (fmpz_sgn(co1) < 0)
-         fmpz_sub(ca, ca, temp);
+      mpz_mul(ca, r1, m1);
+      mpz_mul(temp, co1, m2);
+      if (mpz_sgn(co1) < 0)
+         mpz_sub(ca, ca, temp);
       else
-         fmpz_sub(ca, temp, ca);
+         mpz_sub(ca, temp, ca);
 
-      fmpz_mul(cb, ca, co2);
-      fmpz_sub(cb, t, cb);
-      fmpz_mul_2exp(cb, cb, 1);
-      fmpz_fdiv_q(cb, cb, co1);
-      fmpz_sub(cb, cb, g->b);
-      fmpz_mul_2exp(temp, ca, 1);
-      fmpz_fdiv_r(cb, cb, temp);
+      mpz_mul(cb, ca, co2);
+      mpz_sub(cb, t, cb);
+      mpz_mul_2exp(cb, cb, 1);
+      mpz_fdiv_q(cb, cb, co1);
+      mpz_sub(cb, cb, g->b);
+      mpz_mul_2exp(temp, ca, 1);
+      mpz_fdiv_r(cb, cb, temp);
  
-      fmpz_mul(cc, cb, cb);
-      fmpz_sub(cc, cc, D);
-      fmpz_fdiv_q(cc, cc, ca);
-      fmpz_fdiv_q_2exp(cc, cc, 2);
+      mpz_mul(cc, cb, cb);
+      mpz_sub(cc, cc, D);
+      mpz_fdiv_q(cc, cc, ca);
+      mpz_fdiv_q_2exp(cc, cc, 2);
 
-      if (fmpz_sgn(ca) < 0)
+      if (mpz_sgn(ca) < 0)
       {
-         fmpz_neg(ca, ca);
-         fmpz_neg(cc, cc);
+         mpz_neg(ca, ca);
+         mpz_neg(cc, cc);
       }
 
-      fmpz_clear(m1); fmpz_clear(m2); fmpz_clear(r1); fmpz_clear(r2);
-      fmpz_clear(co1); fmpz_clear(co2); fmpz_clear(temp);
+      mpz_clear(m1); mpz_clear(m2); mpz_clear(r1); mpz_clear(r2);
+      mpz_clear(co1); mpz_clear(co2); mpz_clear(temp);
    }
 
-   fmpz_set(r->a, ca);
-   fmpz_set(r->b, cb);
-   fmpz_set(r->c, cc);
+   mpz_set(r->a, ca);
+   mpz_set(r->b, cb);
+   mpz_set(r->c, cc);
 
-   fmpz_clear(ca); fmpz_clear(cb); fmpz_clear(cc);
-   fmpz_clear(k); fmpz_clear(m);
-   fmpz_clear(s); fmpz_clear(sp); fmpz_clear(ss);
-   fmpz_clear(t); fmpz_clear(u2); fmpz_clear(v1); fmpz_clear(v2);
-   fmpz_clear(a1); fmpz_clear(a2); fmpz_clear(c2);
+   mpz_clear(ca); mpz_clear(cb); mpz_clear(cc);
+   mpz_clear(k); mpz_clear(m);
+   mpz_clear(s); mpz_clear(sp); mpz_clear(ss);
+   mpz_clear(t); mpz_clear(u2); mpz_clear(v1); mpz_clear(v2);
+   mpz_clear(a1); mpz_clear(a2); mpz_clear(c2);
 }
 
 // a = b * c
 void nucomp_form(form &a, form &b, form &c, integer &D, integer &L) {
     qfb fr, fr2, fr3;
-    fmpz_init(fr.a);
-    fmpz_init(fr.b);
-    fmpz_init(fr.c);
-    fmpz_init(fr2.a);
-    fmpz_init(fr2.b);
-    fmpz_init(fr2.c);
-    fmpz_init(fr3.a);
-    fmpz_init(fr3.b);
-    fmpz_init(fr3.c);
-    fmpz_set_mpz(fr2.a, b.a.impl);
-    fmpz_set_mpz(fr2.b, b.b.impl);
-    fmpz_set_mpz(fr2.c, b.c.impl);
-    fmpz_set_mpz(fr3.a, c.a.impl);
-    fmpz_set_mpz(fr3.b, c.b.impl);
-    fmpz_set_mpz(fr3.c, c.c.impl);
-    fmpz_t anticD, anticL;
-    fmpz_init(anticD);
-    fmpz_init(anticL);
-    fmpz_set_mpz(anticD, D.impl);
-    fmpz_set_mpz(anticL, L.impl);
+    mpz_init(fr.a);
+    mpz_init(fr.b);
+    mpz_init(fr.c);
+    mpz_init(fr2.a);
+    mpz_init(fr2.b);
+    mpz_init(fr2.c);
+    mpz_init(fr3.a);
+    mpz_init(fr3.b);
+    mpz_init(fr3.c);
+    mpz_set(fr2.a, b.a.impl);
+    mpz_set(fr2.b, b.b.impl);
+    mpz_set(fr2.c, b.c.impl);
+    mpz_set(fr3.a, c.a.impl);
+    mpz_set(fr3.b, c.b.impl);
+    mpz_set(fr3.c, c.c.impl);
+    mpz_t anticD, anticL;
+    mpz_init(anticD);
+    mpz_init(anticL);
+    mpz_set(anticD, D.impl);
+    mpz_set(anticL, L.impl);
     qfb_nucomp(&fr,&fr2,&fr3,anticD,anticL);
-    fmpz_get_mpz(a.a.impl,fr.a);
-    fmpz_get_mpz(a.b.impl,fr.b);
-    fmpz_get_mpz(a.c.impl,fr.c);
-    fmpz_clear(fr.a);
-    fmpz_clear(fr.b);
-    fmpz_clear(fr.c);
-    fmpz_clear(fr2.a);
-    fmpz_clear(fr2.b);
-    fmpz_clear(fr2.c);
-    fmpz_clear(fr3.a);
-    fmpz_clear(fr3.b);
-    fmpz_clear(fr3.c);
-    fmpz_clear(anticD);
-    fmpz_clear(anticL);
+    mpz_set(a.a.impl,fr.a);
+    mpz_set(a.b.impl,fr.b);
+    mpz_set(a.c.impl,fr.c);
+    mpz_clear(fr.a);
+    mpz_clear(fr.b);
+    mpz_clear(fr.c);
+    mpz_clear(fr2.a);
+    mpz_clear(fr2.b);
+    mpz_clear(fr2.c);
+    mpz_clear(fr3.a);
+    mpz_clear(fr3.b);
+    mpz_clear(fr3.c);
+    mpz_clear(anticD);
+    mpz_clear(anticL);
 }

@@ -1,4 +1,3 @@
-#include <flint/fmpz.h>
 #include "include.h"
 #include "integer_common.h"
 #include "vdf_new.h"
