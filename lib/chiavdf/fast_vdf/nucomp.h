@@ -166,39 +166,20 @@ void qfb_nucomp(qfb_t r, const qfb_t f, const qfb_t g, mpz_t& D, mpz_t& L)
 // a = b * c
 void nucomp_form(form &a, form &b, form &c, integer &D, integer &L) {
     qfb fr, fr2, fr3;
-    mpz_init(fr.a);
-    mpz_init(fr.b);
-    mpz_init(fr.c);
-    mpz_init(fr2.a);
-    mpz_init(fr2.b);
-    mpz_init(fr2.c);
-    mpz_init(fr3.a);
-    mpz_init(fr3.b);
-    mpz_init(fr3.c);
-    mpz_set(fr2.a, b.a.impl);
-    mpz_set(fr2.b, b.b.impl);
-    mpz_set(fr2.c, b.c.impl);
-    mpz_set(fr3.a, c.a.impl);
-    mpz_set(fr3.b, c.b.impl);
-    mpz_set(fr3.c, c.c.impl);
-    mpz_t anticD, anticL;
-    mpz_init(anticD);
-    mpz_init(anticL);
-    mpz_set(anticD, D.impl);
-    mpz_set(anticL, L.impl);
-    qfb_nucomp(&fr,&fr2,&fr3,anticD,anticL);
-    mpz_set(a.a.impl,fr.a);
-    mpz_set(a.b.impl,fr.b);
-    mpz_set(a.c.impl,fr.c);
-    mpz_clear(fr.a);
-    mpz_clear(fr.b);
-    mpz_clear(fr.c);
-    mpz_clear(fr2.a);
-    mpz_clear(fr2.b);
-    mpz_clear(fr2.c);
-    mpz_clear(fr3.a);
-    mpz_clear(fr3.b);
-    mpz_clear(fr3.c);
-    mpz_clear(anticD);
-    mpz_clear(anticL);
+
+    *fr.a = *a.a.impl;
+    *fr.b = *a.b.impl;
+    *fr.c = *a.c.impl;
+    *fr2.a = *b.a.impl;
+    *fr2.b = *b.b.impl;
+    *fr2.c = *b.c.impl;
+    *fr3.a = *c.a.impl;
+    *fr3.b = *c.b.impl;
+    *fr3.c = *c.c.impl;
+
+    qfb_nucomp(&fr, &fr2, &fr3, D.impl, L.impl);
+
+    *a.a.impl = *fr.a;
+    *a.b.impl = *fr.b;
+    *a.c.impl = *fr.c;
 }
