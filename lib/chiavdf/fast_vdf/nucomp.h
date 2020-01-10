@@ -78,8 +78,8 @@ void qfb_nucomp(qfb_t r, const qfb_t f, const qfb_t g, mpz_t& D, mpz_t& L)
 
       if (mpz_cmp_ui(s, 1))
       {
-         mpz_fdiv_q(a1, a1, s);
-         mpz_fdiv_q(a2, a2, s);
+         mpz_divexact(a1, a1, s);
+         mpz_divexact(a2, a2, s);
          mpz_mul(c2, c2, s);
       }
 
@@ -99,7 +99,7 @@ void qfb_nucomp(qfb_t r, const qfb_t f, const qfb_t g, mpz_t& D, mpz_t& L)
       mpz_mul(cc, cc, k);
       mpz_add(cc, cc, c2);
 
-      mpz_fdiv_q(cc, cc, a1);
+      mpz_divexact(cc, cc, a1);
    } else
    {
       mpz_t m1, m2, r1, r2, co1, co2, temp;
@@ -115,12 +115,12 @@ void qfb_nucomp(qfb_t r, const qfb_t f, const qfb_t g, mpz_t& D, mpz_t& L)
       mpz_mul(t, a2, r1);
       mpz_mul(m1, m, co1);
       mpz_add(m1, m1, t);
-      mpz_tdiv_q(m1, m1, a1);
+      mpz_divexact(m1, m1, a1);
 
       mpz_mul(m2, ss, r1);
       mpz_mul(temp, c2, co1);
       mpz_sub(m2, m2, temp);
-      mpz_tdiv_q(m2, m2, a1);
+      mpz_divexact(m2, m2, a1);
 
       mpz_mul(ca, r1, m1);
       mpz_mul(temp, co1, m2);
@@ -132,14 +132,14 @@ void qfb_nucomp(qfb_t r, const qfb_t f, const qfb_t g, mpz_t& D, mpz_t& L)
       mpz_mul(cb, ca, co2);
       mpz_sub(cb, t, cb);
       mpz_mul_2exp(cb, cb, 1);
-      mpz_fdiv_q(cb, cb, co1);
+      mpz_divexact(cb, cb, co1);
       mpz_sub(cb, cb, g->b);
       mpz_mul_2exp(temp, ca, 1);
       mpz_fdiv_r(cb, cb, temp);
  
       mpz_mul(cc, cb, cb);
       mpz_sub(cc, cc, D);
-      mpz_fdiv_q(cc, cc, ca);
+      mpz_divexact(cc, cc, ca);
       mpz_fdiv_q_2exp(cc, cc, 2);
 
       if (mpz_sgn(ca) < 0)
