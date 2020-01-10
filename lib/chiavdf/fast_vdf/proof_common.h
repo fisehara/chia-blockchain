@@ -49,16 +49,8 @@ std::vector<unsigned char> SerializeForm(form &y, int int_size) {
 }
 
 integer FastPow(uint64_t a, uint64_t b, integer& c) {
-    if (b == 0)
-        return integer(1);
-
-    integer res = FastPow(a, b / 2, c);
-    res = res * res;
-    res = res % c;
-    if (b % 2) {
-        res = res * integer(a);
-        res = res % c;
-    }
+    integer res, a1 = integer(a);
+    mpz_powm_ui(res.impl, a1.impl, b, c.impl);
     return res;
 }
 
