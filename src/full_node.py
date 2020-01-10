@@ -378,6 +378,7 @@ class FullNode:
 
         log.error(f"Downloaded headers up to tip height: {tip_height}")
         if not verify_weight(
+            self.blockchain,
             tip_block.header_block,
             headers,
             self.blockchain.header_blocks[fork_point_hash],
