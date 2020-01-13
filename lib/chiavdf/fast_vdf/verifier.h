@@ -6,6 +6,8 @@
 #include "proof_common.h"
 #include "create_discriminant.h"
 
+const int kMaxBytesProof = 100000;
+
 form FastPowFormNucomp(form x, integer &D, integer num_iterations, integer &L)
 {
     form res = form::identity(D);
@@ -87,8 +89,8 @@ bool CheckProofOfTimeNWesolowskiInner(integer &D, form x, uint8_t *proof_blob,
                                       int blob_len, int iters, int int_size,
                                       std::vector<int> iter_list, int recursion)
 {
-    uint8_t result_bytes[10000];
-    uint8_t proof_bytes[10000];
+    uint8_t result_bytes[kMaxBytesProof];
+    uint8_t proof_bytes[kMaxBytesProof];
     memcpy(result_bytes, proof_blob, 2 * int_size);
     memcpy(proof_bytes, proof_blob + 2 * int_size, blob_len - 2 * int_size);
     form y = DeserializeForm(D, result_bytes, int_size);
@@ -109,7 +111,7 @@ bool CheckProofOfTimeNWesolowskiInner(integer &D, form x, uint8_t *proof_blob,
         int iters2 = iters - iters1;
         bool ver_outer;
         std::thread t(VerifyWesolowskiProof, std::ref(D), x, proof[proof.size() - 2], proof[proof.size() - 1], iters1, std::ref(ver_outer));
-        uint8_t new_proof_bytes[10000];
+        uint8_t new_proof_bytes[kMaxBytesProof];
         for (int i = 0; i < blob_len - 4 * int_size; i++)
             new_proof_bytes[i] = proof_blob[i];
         iter_list.pop_back();
@@ -124,7 +126,7 @@ bool CheckProofOfTimeNWesolowskiInner(integer &D, form x, uint8_t *proof_blob,
 bool CheckProofOfTimeNWesolowski(integer &D, form x, uint8_t *proof_blob, int proof_blob_len, int iters, int recursion)
 {
     int int_size = (D.num_bits() + 16) >> 4;
-    uint8_t new_proof_blob[10000];
+    uint8_t new_proof_blob[kMaxBytesProof];
     int new_cnt = 4 * int_size;
     memcpy(new_proof_blob, proof_blob, new_cnt);
     std::vector<int> iter_list;
@@ -165,7 +167,7 @@ struct ProofOfTimeType
     std::vector<uint8_t> witness;
     uint8_t witness_type;
 
-    ProofOfTimeType(std::vector<uint8_t>& challenge_hash, const integer &a, const integer &b, uint64_t iterations_needed,
+    ProofOfTimeType(const std::vector<uint8_t>& challenge_hash, const integer &a, const integer &b, uint64_t iterations_needed,
                     const std::vector<uint8_t> &witness, uint8_t witness_type)
     {
         this->challenge_hash = challenge_hash;
@@ -200,7 +202,6 @@ bool CheckProofOfTimeType(ProofOfTimeType &proof)
     }
     auto t2 = std::chrono::high_resolution_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count();
-    print("Verification time = " + to_string(duration) + "ms.");
-
+    //print("Verification time = " + to_string(duration) + "ms.");
     return result;
 }

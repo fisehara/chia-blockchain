@@ -1,7 +1,7 @@
 const int m = 8 * 3 * 5 * 7 * 11 * 13;
 
 std::vector<int> OddPrimesBelowM() {
-    int low_prime[m];
+    int low_prime[m + 1];
     memset(low_prime, 0, sizeof(low_prime));
     std::vector<int> primes;
     for (int i = 2; i <= m; i++) {
