@@ -33,5 +33,5 @@ add_executable(verifier_test
     verifier_test.cpp
 )
 
-target_link_libraries(chiavdf PRIVATE ${GMP_LIBRARIES} ${GMPXX_LIBRARIES})
-target_link_libraries(verifier_test ${GMP_LIBRARIES} ${GMPXX_LIBRARIES})
+target_link_libraries(chiavdf PRIVATE ${GMP_LIBRARIES} ${GMPXX_LIBRARIES} -pthread)
+target_link_libraries(verifier_test ${GMP_LIBRARIES} ${GMPXX_LIBRARIES} -pthread)
