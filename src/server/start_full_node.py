@@ -12,6 +12,7 @@ from src.consensus.constants import constants
 from src.store import FullNodeStore
 from src.full_node import FullNode
 from src.rpc.rpc_server import start_rpc_server
+from src.mempool import Mempool
 from src.server.outbound_message import NodeType
 from src.server.server import ChiaServer
 from src.types.full_block import FullBlock
@@ -68,8 +69,10 @@ async def main():
     header_blocks: Dict[str, HeaderBlock] = await load_header_blocks_from_store(store)
     blockchain = Blockchain()
     await blockchain.initialize(header_blocks)
+    mempool = Mempool()
+    # await mempool.initialize() TODO uncomment once it's implemented
 
-    full_node = FullNode(store, blockchain)
+    full_node = FullNode(store, blockchain, mempool)
     # Starts the full node server (which full nodes can connect to)
     host, port = parse_host_port(full_node)
 
