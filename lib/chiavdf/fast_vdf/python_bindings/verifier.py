@@ -55,6 +55,7 @@ witness_type = 2
 
 t1 = time.time()
 result = verify(
+    1024,
     challenge_hash,
     a,
     b,
@@ -68,6 +69,7 @@ print(f"Result test 1: {result}")
 print(f"Test time: {t2 - t1}")
 
 result = verify(
+    1024,
     challenge_hash,
     a,
     b,

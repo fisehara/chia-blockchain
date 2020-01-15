@@ -160,6 +160,7 @@ std::vector<uint8_t> HexToBytes(char *hex_proof)
 // Intended to match with ProofOfTime type from Chia Blockchain.
 struct ProofOfTimeType
 {
+    int discriminant_size_bits;
     std::vector<uint8_t> challenge_hash;
     integer a;
     integer b;
@@ -167,9 +168,10 @@ struct ProofOfTimeType
     std::vector<uint8_t> witness;
     uint8_t witness_type;
 
-    ProofOfTimeType(const std::vector<uint8_t>& challenge_hash, const integer &a, const integer &b, uint64_t iterations_needed,
+    ProofOfTimeType(const int discriminant_size_bits, const std::vector<uint8_t>& challenge_hash, const integer &a, const integer &b, uint64_t iterations_needed,
                     const std::vector<uint8_t> &witness, uint8_t witness_type)
     {
+        this->discriminant_size_bits = discriminant_size_bits;
         this->challenge_hash = challenge_hash;
         this->a = a;
         this->b = b;
@@ -182,9 +184,8 @@ struct ProofOfTimeType
 // Converts from ProofOfTimeType to CheckProofOfTimeNWesolowski-like arguments and calls the check.
 bool CheckProofOfTimeType(ProofOfTimeType &proof)
 {
-    auto t1 = std::chrono::high_resolution_clock::now();
     bool result;
-    integer discriminant = CreateDiscriminant(proof.challenge_hash);
+    integer discriminant = CreateDiscriminant(proof.challenge_hash, proof.discriminant_size_bits);
 
     try
     {
@@ -200,8 +201,5 @@ bool CheckProofOfTimeType(ProofOfTimeType &proof)
     {
         result = false;
     }
-    auto t2 = std::chrono::high_resolution_clock::now();
-    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count();
-    //print("Verification time = " + to_string(duration) + "ms.");
     return result;
 }

@@ -1,10 +1,11 @@
 const int m = 8 * 3 * 5 * 7 * 11 * 13;
 
 std::vector<int> OddPrimesBelowM() {
-    int low_prime[m + 1];
+    const int limit = (1 << 16);
+    int low_prime[limit + 1];
     memset(low_prime, 0, sizeof(low_prime));
     std::vector<int> primes;
-    for (int i = 2; i <= m; i++) {
+    for (int i = 2; i <= limit; i++) {
         if (low_prime[i] == 0) {
             low_prime[i] = i;
             primes.push_back(i);
@@ -12,7 +13,7 @@ std::vector<int> OddPrimesBelowM() {
         for (int j = 0; j < primes.size(); j++) {
             if (primes[j] > low_prime[i]) 
                 break;
-            if (primes[j] * i > m)
+            if (primes[j] * i > limit)
                 break;
             low_prime[primes[j] * i] = primes[j];
         }

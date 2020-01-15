@@ -35,10 +35,11 @@ class ProofOfTime(Streamable):
 
     def is_valid(self, discriminant_size_bits):
         return verify(
+            discriminant_size_bits,
             self.challenge_hash,
             str(self.output.a),
             str(self.output.b),
             self.number_of_iterations,
             bytes(self.witness),
-            self.witness_type
+            self.witness_type,
         )
