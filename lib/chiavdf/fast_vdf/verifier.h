@@ -5,19 +5,71 @@
 #include "nucomp.h"
 #include "proof_common.h"
 #include "create_discriminant.h"
+#include "ClassGroup.h"
+#include "Reducer.h"
+
+// Set to false to use slow reducer instead of pulmark reducer.
+const bool pulmark = true;
 
 const int kMaxBytesProof = 100000;
 
-form FastPowFormNucomp(form x, integer &D, integer num_iterations, integer &L)
+class PulmarkReducer {
+    ClassGroupContext *t;
+    Reducer *reducer;
+
+  public:
+    PulmarkReducer() {
+        t=new ClassGroupContext(4096);
+        reducer=new Reducer(*t);
+    }
+
+    ~PulmarkReducer() {
+        delete(reducer);
+        delete(t);
+    }
+
+    void set_form(const form& f) {
+        mpz_set(t->a, f.a.impl);
+        mpz_set(t->b, f.b.impl);
+        mpz_set(t->c, f.c.impl);
+    }
+
+    void get_form(form& f_out) {
+        mpz_set(f_out.a.impl, t->a);
+        mpz_set(f_out.b.impl, t->b);
+        mpz_set(f_out.c.impl, t->c);
+    }
+
+    void reduce_inner() {
+        reducer->run();
+    }
+};
+
+form FastPowFormNucomp(form x, integer &D, integer num_iterations, integer &L, PulmarkReducer& reducer)
 {
     form res = form::identity(D);
 
     integer zero(0);
     while (num_iterations > zero) 
     {
-        if (num_iterations.get_bit(0)) 
+        if (num_iterations.get_bit(0)) {
             nucomp_form(res, res, x, D, L);
+            if (pulmark) {
+                reducer.set_form(res);
+                reducer.reduce_inner();
+                reducer.get_form(res);
+            } else {
+                res.reduce();
+            }
+        }
         nucomp_form(x, x, x, D, L);
+        if (pulmark) {
+            reducer.set_form(x);
+            reducer.reduce_inner();
+            reducer.get_form(x);
+        } else {
+            x.reduce();
+        }
         num_iterations >>= 1;
     }
     return res;
@@ -69,12 +121,13 @@ std::vector<form> DeserializeProof(uint8_t *proof_bytes, int proof_len, integer 
 
 void VerifyWesolowskiProof(integer &D, form x, form y, form proof, int iters, bool &is_valid)
 {
+    PulmarkReducer reducer;
     int int_size = (D.num_bits() + 16) >> 4;
     integer L = root(-D, 4);
     integer B = GetB(D, x, y);
     integer r = FastPow(2, iters, B);
-    form f1 = FastPowFormNucomp(proof, D, B, L);
-    form f2 = FastPowFormNucomp(x, D, r, L);
+    form f1 = FastPowFormNucomp(proof, D, B, L, reducer);
+    form f2 = FastPowFormNucomp(x, D, r, L, reducer);
     if (f1 * f2 == y)
     {
         is_valid = true;

@@ -201,6 +201,4 @@ void nucomp_form(form &a, form &b, form &c, integer &D, integer &L) {
     *a.a.impl = *fr.a;
     *a.b.impl = *fr.b;
     *a.c.impl = *fr.c;
-
-    a.reduce();
 }
