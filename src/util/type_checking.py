@@ -17,8 +17,9 @@ def is_type_SpecificOptional(f_type) -> bool:
     print("is specific optional?", hasattr(f_type, "__origin__"))
     if (hasattr(f_type, "__origin__")):
         print("origin", f_type.__origin__)
-    print(f_type.__args__[1])
-    print(f_type.__args__[1]())
+        if f_type.__origin__ == Union:
+            print(f_type.__args__[1])
+            print(f_type.__args__[1]())
     return (
         hasattr(f_type, "__origin__")
         and f_type.__origin__ == Union
