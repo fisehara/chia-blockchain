@@ -1,4 +1,5 @@
 # chia-blockchain
+a
 Please check out the [wiki](https://github.com/Chia-Network/chia-blockchain/wiki) and [FAQ](https://github.com/Chia-Network/chia-blockchain/wiki/FAQ) for information on this project.
 
 Python 3.7 is required. Make sure your default python version is >=3.7 by typing `python3`.
