@@ -23,9 +23,9 @@ class StructStream(int):
 
     @classmethod
     def parse(cls: Any, f: BinaryIO) -> Any:
-        print("Unpacking", cls)
+        # print("Unpacking", cls)
         a = f.read(struct.calcsize(cls.PACK))
-        print("a:", a)
+        # print("a:", a)
 
         return cls(*struct.unpack(cls.PACK, a))
 
