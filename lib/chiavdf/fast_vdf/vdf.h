@@ -483,7 +483,7 @@ Proof CreateProofOfTimeWesolowski(integer& D, form x, int64_t num_iterations, ui
     l = (num_iterations >= 10000000) ? 10 : 1;
 
     while (!stop_signal && weso.iterations < done_iterations + num_iterations) {
-        std::this_thread::sleep_for (std::chrono::seconds(3));
+        std::this_thread::sleep_for (std::chrono::milliseconds(200));
     }
 
     if (stop_signal)
@@ -535,7 +535,7 @@ Proof CreateProofOfTimeNWesolowski(integer& D, form x, int64_t num_iterations,
     l = (iterations1 >= 10000000) ? 10 : 1;
     
     while (!stop_signal && weso.iterations < done_iterations + iterations1) {
-        std::this_thread::sleep_for (std::chrono::seconds(3));
+        std::this_thread::sleep_for (std::chrono::milliseconds(200));
     }
 
     if (stop_signal)
