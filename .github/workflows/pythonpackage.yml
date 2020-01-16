@@ -9,8 +9,8 @@ jobs:
     strategy:
       max-parallel: 4
       matrix:
-        python-version: [3.7]
-        os: [ubuntu-latest, macOS-latest]
+        python-version: [3.7.3, 3.7.6]
+        os: [macOS-10.14, macOS-10.15]
 
     steps:
     - uses: actions/checkout@v1
@@ -25,12 +25,9 @@ jobs:
       run: |
         eval "$(ssh-agent -s)"
         ssh-add - <<< "${CHIA_MACHINE_SSH_KEY}"
-        git submodule update --init --recursive
-        brew update && brew install gmp || echo ""
-        python3 -m venv .venv
+        brew update && brew install cmake || echo ""
+        sh install.sh
         . .venv/bin/activate
-        pip install -e .
-        pip install -r requirements.txt
     - name: Lint with flake8
       run: |
         ./.venv/bin/flake8 src
