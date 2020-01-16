@@ -365,6 +365,29 @@ struct Proof {
 };
 
 #define PULMARK 1
+#if PULMARK
+#define IF_PULMARK(...) __VA_ARGS__
+#else
+#define IF_PULMARK(...)
+#endif
+
+void fast_reduce_form(form &f IF_PULMARK(, Reducer *reducer, ClassGroupContext *t))
+{
+#if PULMARK
+    // Pulmark reduce based on Akashnil reduce
+    mpz_swap(t->a, f.a.impl);
+    mpz_swap(t->b, f.b.impl);
+    mpz_swap(t->c, f.c.impl);
+
+    reducer->run();
+
+    mpz_swap(t->a, f.a.impl);
+    mpz_swap(t->b, f.b.impl);
+    mpz_swap(t->c, f.c.impl);
+#else
+    f.reduce();
+#endif
+}
 
 form GenerateProof(form &y, form &x_init, integer &D, uint64_t done_iterations, uint64_t num_iterations, uint64_t k, uint64_t l, WesolowskiCallback& weso, bool& stop_signal) {
     auto t1 = std::chrono::high_resolution_clock::now();
@@ -398,20 +421,8 @@ form GenerateProof(form &y, form &x_init, integer &D, uint64_t done_iterations, 
                 uint64_t b = GetBlock(i*l + j, k, num_iterations, B);
                 tmp = weso.GetForm(done_iterations + i * k * l);
                 nucomp_form(ys[b], ys[b], *tmp, D, L);
-#if PULMARK
-                // Pulmark reduce based on Akashnil reduce
-                mpz_set(t->a, ys[b].a.impl);
-                mpz_set(t->b, ys[b].b.impl);
-                mpz_set(t->c, ys[b].c.impl);
 
-                reducer->run();
-
-                mpz_set(ys[b].a.impl, t->a);
-                mpz_set(ys[b].b.impl, t->b);
-                mpz_set(ys[b].c.impl, t->c);
-#else
-                ys[b].reduce();
-#endif
+                fast_reduce_form(ys[b] IF_PULMARK(, reducer, t));
             }
         }
 
@@ -422,20 +433,8 @@ form GenerateProof(form &y, form &x_init, integer &D, uint64_t done_iterations, 
             form z = form::identity(D);
             for (uint64_t b0 = 0; b0 < (1 << k0) && !stop_signal; b0++) {
                 nucomp_form(z, z, ys[b1 * (1 << k0) + b0], D, L);
-#if PULMARK
-                // Pulmark reduce based on Akashnil reduce
-                mpz_set(t->a, z.a.impl);
-                mpz_set(t->b, z.b.impl);
-                mpz_set(t->c, z.c.impl);
 
-                reducer->run();
-
-                mpz_set(z.a.impl, t->a);
-                mpz_set(z.b.impl, t->b);
-                mpz_set(z.c.impl, t->c);
-#else
-                z.reduce();
-#endif
+                fast_reduce_form(z IF_PULMARK(, reducer, t));
             }
             z = FastPowForm(z, D, integer(b1 * (1 << k0)));
             x = x * z;
@@ -445,20 +444,8 @@ form GenerateProof(form &y, form &x_init, integer &D, uint64_t done_iterations, 
             form z = form::identity(D);
             for (uint64_t b1 = 0; b1 < (1 << k1) && !stop_signal; b1++) {
                 nucomp_form(z, z, ys[b1 * (1 << k0) + b0], D, L);
-#if PULMARK
-                // Pulmark reduce based on Akashnil reduce
-                mpz_set(t->a, z.a.impl);
-                mpz_set(t->b, z.b.impl);
-                mpz_set(t->c, z.c.impl);
 
-                reducer->run();
-
-                mpz_set(z.a.impl, t->a);
-                mpz_set(z.b.impl, t->b);
-                mpz_set(z.c.impl, t->c);
-#else
-                z.reduce();
-#endif
+                fast_reduce_form(z IF_PULMARK(, reducer, t));
             }
             z = FastPowForm(z, D, integer(b0));
             x = x * z;
@@ -468,22 +455,11 @@ form GenerateProof(form &y, form &x_init, integer &D, uint64_t done_iterations, 
             return form();
     }
 
+    fast_reduce_form(x IF_PULMARK(, reducer, t));
+
 #if PULMARK
-    // Pulmark reduce based on Akashnil reduce
-    mpz_set(t->a, x.a.impl);
-    mpz_set(t->b, x.b.impl);
-    mpz_set(t->c, x.c.impl);
-
-    reducer->run();
-
-    mpz_set(x.a.impl, t->a);
-    mpz_set(x.b.impl, t->b);
-    mpz_set(x.c.impl, t->c);
-
     delete(reducer);
     delete(t);
-#else
-    x.reduce();
 #endif
 
     auto t2 = std::chrono::high_resolution_clock::now();
