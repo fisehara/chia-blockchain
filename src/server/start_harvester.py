@@ -1,8 +1,6 @@
 import asyncio
 import signal
 
-import uvloop
-
 from src.harvester import Harvester
 from src.server.outbound_message import NodeType
 from src.server.server import ChiaServer
@@ -34,5 +32,4 @@ async def main():
     await harvester._await_shutdown()
 
 
-uvloop.install()
 asyncio.run(main())

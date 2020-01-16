@@ -6,7 +6,6 @@ import sys
 from typing import Dict, List
 
 import miniupnpc
-import uvloop
 
 from src.blockchain import Blockchain
 from src.consensus.constants import constants
@@ -140,5 +139,4 @@ async def main():
     log.info("Node fully closed.")
 
 
-uvloop.install()
 asyncio.run(main())
