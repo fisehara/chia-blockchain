@@ -327,8 +327,8 @@ void repeated_square(form f, const integer& D, const integer& L, WesolowskiCallb
 }
 
 uint64_t GetBlock(uint64_t i, uint64_t k, uint64_t T, integer& B) {
-    integer res(1 << k);
-    res *= FastPow(2, T - k * (i + 1), B);
+    integer res = FastPow(2, T - k * (i + 1), B);
+    mpz_mul_2exp(res.impl, res.impl, k);
     res = res / B;
     auto res_vector = res.to_vector();
     return res_vector[0];
