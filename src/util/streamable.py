@@ -131,6 +131,7 @@ class Streamable:
             else:
                 return None
         if hasattr(f_type, "parse"):
+            print("Parsing", f_type)
             return f_type.parse(f)
         if hasattr(f_type, "from_bytes") and size_hints[f_type.__name__]:
             return f_type.from_bytes(f.read(size_hints[f_type.__name__]))
