@@ -62,15 +62,67 @@ integer GetB(const integer& D, form &x, form& y) {
     return HashPrime(serialization);
 }
 
-form FastPowForm(form &x, const integer& D, integer num_iterations) {
-    if (num_iterations == integer(0))
-        return form::identity(D);
+// Set to false to use slow reducer instead of pulmark reducer.
+const bool pulmark = true;
 
-    integer new_num_iterations = num_iterations;
-    new_num_iterations >>= 1;
-    form res = FastPowForm(x, D, new_num_iterations);
-    res = res * res;
-    if (num_iterations % integer(2) == integer(1))
-	    res = res * x;
+class PulmarkReducer {
+    ClassGroupContext *t;
+    Reducer *reducer;
+
+  public:
+    PulmarkReducer() {
+        t=new ClassGroupContext(4096);
+        reducer=new Reducer(*t);
+    }
+
+    ~PulmarkReducer() {
+        delete(reducer);
+        delete(t);
+    }
+
+    void set_form(const form& f) {
+        mpz_set(t->a, f.a.impl);
+        mpz_set(t->b, f.b.impl);
+        mpz_set(t->c, f.c.impl);
+    }
+
+    void get_form(form& f_out) {
+        mpz_set(f_out.a.impl, t->a);
+        mpz_set(f_out.b.impl, t->b);
+        mpz_set(f_out.c.impl, t->c);
+    }
+
+    void reduce_inner() {
+        reducer->run();
+    }
+};
+
+form FastPowFormNucomp(form x, integer &D, integer num_iterations, integer &L, PulmarkReducer& reducer)
+{
+    form res = form::identity(D);
+
+    integer zero(0);
+    while (num_iterations > zero)
+    {
+        if (num_iterations.get_bit(0)) {
+            nucomp_form(res, res, x, D, L);
+            if (pulmark) {
+                reducer.set_form(res);
+                reducer.reduce_inner();
+                reducer.get_form(res);
+            } else {
+                res.reduce();
+            }
+        }
+        nucomp_form(x, x, x, D, L);
+        if (pulmark) {
+            reducer.set_form(x);
+            reducer.reduce_inner();
+            reducer.get_form(x);
+        } else {
+            x.reduce();
+        }
+        num_iterations >>= 1;
+    }
     return res;
 }
