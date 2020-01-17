@@ -1,6 +1,8 @@
 #!/bin/bash
 set -e
 
+python3 --version
+xcode-select --version
 python3 -m venv .venv
 . .venv/bin/activate
 pip install -e .
