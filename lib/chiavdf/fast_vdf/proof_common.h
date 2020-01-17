@@ -62,9 +62,6 @@ integer GetB(const integer& D, form &x, form& y) {
     return HashPrime(serialization);
 }
 
-// Set to false to use slow reducer instead of pulmark reducer.
-const bool pulmark = true;
-
 class PulmarkReducer {
     ClassGroupContext *t;
     Reducer *reducer;
@@ -80,20 +77,16 @@ class PulmarkReducer {
         delete(t);
     }
 
-    void set_form(const form& f) {
+    void reduce(form &f) {
         mpz_set(t->a, f.a.impl);
         mpz_set(t->b, f.b.impl);
         mpz_set(t->c, f.c.impl);
-    }
 
-    void get_form(form& f_out) {
-        mpz_set(f_out.a.impl, t->a);
-        mpz_set(f_out.b.impl, t->b);
-        mpz_set(f_out.c.impl, t->c);
-    }
-
-    void reduce_inner() {
         reducer->run();
+
+        mpz_set(f.a.impl, t->a);
+        mpz_set(f.b.impl, t->b);
+        mpz_set(f.c.impl, t->c);
     }
 };
 
@@ -106,22 +99,10 @@ form FastPowFormNucomp(form x, integer &D, integer num_iterations, integer &L, P
     {
         if (num_iterations.get_bit(0)) {
             nucomp_form(res, res, x, D, L);
-            if (pulmark) {
-                reducer.set_form(res);
-                reducer.reduce_inner();
-                reducer.get_form(res);
-            } else {
-                res.reduce();
-            }
+            reducer.reduce(res);
         }
         nucomp_form(x, x, x, D, L);
-        if (pulmark) {
-            reducer.set_form(x);
-            reducer.reduce_inner();
-            reducer.get_form(x);
-        } else {
-            x.reduce();
-        }
+        reducer.reduce(x);
         num_iterations >>= 1;
     }
     return res;

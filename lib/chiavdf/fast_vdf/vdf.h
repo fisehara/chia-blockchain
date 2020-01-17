@@ -418,9 +418,7 @@ form GenerateProof(form &y, form &x_init, integer &D, uint64_t done_iterations, 
             return form();
     }
 
-    reducer.set_form(x);
-    reducer.reduce_inner();
-    reducer.get_form(x);
+    reducer.reduce(x);
 
     auto t2 = std::chrono::high_resolution_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count();
