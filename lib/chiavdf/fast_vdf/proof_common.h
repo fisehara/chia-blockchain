@@ -1,3 +1,5 @@
+#include "Reducer.h"
+
 std::vector<unsigned char> ConvertIntegerToBytes(integer x, uint64_t num_bytes) {
     std::vector<unsigned char> bytes;
     bool negative = false;

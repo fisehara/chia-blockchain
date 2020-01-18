@@ -40,8 +40,6 @@
 
 #include <chrono>
 
-#include "ClassGroup.h"
-#include "Reducer.h"
 #include "proof_common.h"
 
 #include <boost/asio.hpp>

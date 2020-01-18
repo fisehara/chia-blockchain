@@ -5,8 +5,6 @@
 #include "nucomp.h"
 #include "proof_common.h"
 #include "create_discriminant.h"
-#include "ClassGroup.h"
-#include "Reducer.h"
 
 const int kMaxBytesProof = 100000;
 
