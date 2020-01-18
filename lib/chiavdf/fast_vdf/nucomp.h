@@ -91,6 +91,7 @@ void qfb_nucomp(qfb_t r, const qfb_t f, const qfb_t g, mpz_t& D, mpz_t& L)
    {
       mpz_gcdext(s, v2, u2, ss, sp);
  
+      /* k = k*u2 - v2*c2 */
       mpz_mul(k, k, u2);
       mpz_mul(t, v2, c2);
       mpz_sub(k, k, t);
@@ -131,16 +132,19 @@ void qfb_nucomp(qfb_t r, const qfb_t f, const qfb_t g, mpz_t& D, mpz_t& L)
 
       mpz_xgcd_partial(co2, co1, r2, r1, L);
 
+      /* m1 = (m*co1 + a2*r1) / a1 */
       mpz_mul(t, a2, r1);
       mpz_mul(m1, m, co1);
       mpz_add(m1, m1, t);
       mpz_divexact(m1, m1, a1);
 
+      /* m2 = (ss*r1 - c2*co1) / a1 */
       mpz_mul(m2, ss, r1);
       mpz_mul(temp, c2, co1);
       mpz_sub(m2, m2, temp);
       mpz_divexact(m2, m2, a1);
 
+      /* ca = -sgn(co1) * (r1*m1 - co1*m2) */
       mpz_mul(ca, r1, m1);
       mpz_mul(temp, co1, m2);
       if (mpz_sgn(co1) < 0)
@@ -148,6 +152,7 @@ void qfb_nucomp(qfb_t r, const qfb_t f, const qfb_t g, mpz_t& D, mpz_t& L)
       else
          mpz_sub(ca, temp, ca);
 
+      /* cb = (2 * (t - ca*co2) / co1 - g->b) % (2*ca) */
       mpz_mul(cb, ca, co2);
       mpz_sub(cb, t, cb);
       mpz_mul_2exp(cb, cb, 1);
@@ -156,6 +161,7 @@ void qfb_nucomp(qfb_t r, const qfb_t f, const qfb_t g, mpz_t& D, mpz_t& L)
       mpz_mul_2exp(temp, ca, 1);
       mpz_fdiv_r(cb, cb, temp);
  
+      /* cc = (cb*cb - D) / (4*ca) */
       mpz_mul(cc, cb, cb);
       mpz_sub(cc, cc, D);
       mpz_divexact(cc, cc, ca);
