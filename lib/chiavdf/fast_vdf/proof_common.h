@@ -111,7 +111,7 @@ form FastPowFormNucomp(form x, integer &D, integer num_iterations, integer &L, P
             break;
         }
 
-        nucomp_form(x, x, x, D, L);
+        nudupl_form(x, x, D, L);
         if (x.a.impl->_mp_size > D_size) {
             reducer.reduce(x);
         }

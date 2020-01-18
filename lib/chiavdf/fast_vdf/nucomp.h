@@ -208,3 +208,134 @@ void nucomp_form(form &a, form &b, form &c, integer &D, integer &L) {
     *a.b.impl = *fr.b;
     *a.c.impl = *fr.c;
 }
+
+void qfb_nudupl(qfb_t r, qfb_t f, mpz_t D, mpz_t L)
+{
+    mpz_t a1, c1, cb, k, s, t, u2, v1, v2;
+
+    mpz_init(a1); mpz_init(c1);
+    mpz_init(cb);
+    mpz_init(k);
+    mpz_init(s);
+    mpz_init(t); mpz_init(u2); mpz_init(v1); mpz_init(v2);
+
+    /* nucomp calculation */
+
+    /* a1 = a */
+    mpz_set(a1, f->a);
+    /* c1 = c */
+    mpz_set(c1, f->c);
+
+    /* b < 0 */
+    if (mpz_sgn(f->b) < 0) {
+        mpz_neg(f->b, f->b);
+        /* s = gcd(abs(b), a); v2 = inv(b) (mod a) */
+        mpz_gcdext(s, v2, NULL, f->b, a1);
+        mpz_neg(f->b, f->b);
+        mpz_neg(v2, v2);
+    } else {
+        mpz_gcdext(s, v2, NULL, f->b, a1);
+    }
+
+    mpz_mul(k, v2, c1);
+    mpz_neg(k, k);
+
+    if (mpz_cmp_ui(s, 1)) {
+        mpz_fdiv_q(a1, a1, s);
+        mpz_mul(c1, c1, s);
+    }
+
+    /* k = -(c*inv(b)) (mod a) */
+    mpz_fdiv_r(k, k, a1);
+
+    if (mpz_cmp(a1, L) < 0) {
+        mpz_mul(t, a1, k);
+
+        mpz_mul(r->a, a1, a1);
+
+        mpz_mul_2exp(cb, t, 1);
+        mpz_add(cb, cb, f->b);
+
+        mpz_add(r->c, f->b, t);
+        mpz_mul(r->c, r->c, k);
+        mpz_add(r->c, r->c, c1);
+
+        mpz_fdiv_q(r->c, r->c, a1);
+    } else {
+        mpz_t m2, r1, r2, co1, co2, temp;
+
+        mpz_init(m2); mpz_init(r1); mpz_init(r2);
+        mpz_init(co1); mpz_init(co2); mpz_init(temp);
+
+        mpz_set(r2, a1);
+        /* r1 = k */
+        mpz_swap(r1, k);
+
+        /* Satisfies co2*r1 - co1*r2 == +/- r2_orig */
+        mpz_xgcd_partial(co2, co1, r2, r1, L);
+
+        /* m2 = b * r1 */
+        mpz_mul(m2, f->b, r1);
+        mpz_submul(m2, c1, co1);
+        /* m2 = (b*r1 - c1*co1) / a1 */
+        mpz_divexact(m2, m2, a1);
+
+        /* new_a = r1^2 */
+        mpz_mul(r->a, r1, r1);
+        /* new_a = new_a - co1 * m2 */
+        mpz_submul(r->a, co1, m2);
+        if (mpz_sgn(co1) >= 0)
+            mpz_neg(r->a, r->a);
+
+        mpz_mul(cb, r->a, co2);
+        mpz_submul(cb, a1, r1);
+        /* cb = a1*r1 - new_a*co2 */
+        mpz_neg(cb, cb);
+        /* cb = 2 * (a1*r1 - new_a*co2) */
+        mpz_mul_2exp(cb, cb, 1);
+        mpz_divexact(cb, cb, co1);
+        mpz_sub(cb, cb, f->b);
+        mpz_mul_2exp(temp, r->a, 1);
+        mpz_fdiv_r(cb, cb, temp);
+
+        mpz_mul(r->c, cb, cb);
+        mpz_sub(r->c, r->c, D);
+        mpz_divexact(r->c, r->c, r->a);
+        mpz_tdiv_q_2exp(r->c, r->c, 2);
+
+        if (mpz_sgn(r->a) < 0) {
+            mpz_neg(r->a, r->a);
+            mpz_neg(r->c, r->c);
+        }
+
+        mpz_clear(m2); mpz_clear(r1); mpz_clear(r2);
+        mpz_clear(co1); mpz_clear(co2); mpz_clear(temp);
+    }
+
+    mpz_set(r->b, cb);
+
+    mpz_clear(cb);
+    mpz_clear(k);
+    mpz_clear(s);
+    mpz_clear(t); mpz_clear(u2); mpz_clear(v2);
+    mpz_clear(a1); mpz_clear(c1);
+}
+
+// a = b * b
+void nudupl_form(form &a, form &b, integer &D, integer &L)
+{
+    qfb fr, fr2;
+
+    *fr.a = *a.a.impl;
+    *fr.b = *a.b.impl;
+    *fr.c = *a.c.impl;
+    *fr2.a = *b.a.impl;
+    *fr2.b = *b.b.impl;
+    *fr2.c = *b.c.impl;
+
+    qfb_nudupl(&fr, &fr2, D.impl, L.impl);
+
+    *a.a.impl = *fr.a;
+    *a.b.impl = *fr.b;
+    *a.c.impl = *fr.c;
+}
