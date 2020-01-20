@@ -12,5 +12,11 @@ build-docker: ## Build the docker container from dist
 deploy-docker: ## Build the docker container from dist
 	docker push $(DOCKER_REGISTRY)/$(APP_NAME):$(VERSION)
 
-run-local-farmer: ## Run docker image local
-	docker run --network host $(APP_NAME):$(VERSION) . .venv/bin/activate && sh ./scripts/run_farming.sh
+generate-keys:
+	docker run --network host $(DOCKER_REGISTRY)/$(APP_NAME):$(VERSION) /bin/bash -c "python -m scripts.regenerate_keys"
+
+run-farmer: ## Run docker image local
+	docker run --network host $(DOCKER_REGISTRY)/$(APP_NAME):$(VERSION) /bin/bash -c ". .venv/bin/activate && sh ./scripts/run_farming.sh"
+
+run-full-node: ## Run docker image local
+	docker run --network host $(DOCKER_REGISTRY)/$(APP_NAME):$(VERSION) /bin/bash -c ". .venv/bin/activate && sh ./scripts/run_farming.sh"
